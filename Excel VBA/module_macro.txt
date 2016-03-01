@@ -1,0 +1,12 @@
+Option Explicit
+
+Public Type func_name
+    no_params As Integer
+    params() As String
+End Type
+
+Public Pause As func_name
+Public Infuse As func_name
+Public Withdraw As func_name
+Public Iterate As func_name
+Public MoveTo As func_name

@@ -1,0 +1,144 @@
+Option Explicit
+
+Private Sub Worksheet_Change(ByVal Target As Range)
+     'Sub "autocompletes" data entered into column A using a source table on a different worksheet. If more than one match is
+     '    found, the user is allowed to continue entering characters until a unique match is found. If no matches are found, the
+     '    data is accepted as entered. ALT + Enter, Enter to force the macro to accept data as entered. The sub is triggered by
+     '    the Enter key.
+     Static old_rows As Integer 'Stores the no. of rows that existed the last time this subroutine was run
+     Dim cel As Range, match1 As Range, match2 As Range, rg As Range, targ As Range
+     '***Please adjust the next two statements before using this code!***
+    Set targ = Intersect(Target, Range("A:A")) 'Watch the cells in column A
+    Set rg = Worksheets("Sheet1").Range("A1:A6") 'Use named range AutoCompleteText for "autocomplete" info
+    If targ Is Nothing Then Exit Sub
+    Application.ScreenUpdating = False
+    Application.EnableEvents = False
+    On Error GoTo errhandler 'If code encounters an error, turn events back on
+   
+    If Worksheets(1).Cells(Worksheets(1).Rows.Count, "A").End(xlUp).Row < old_rows Then 'If rows have been deleted
+        MsgBox "Rows Deleted" & " No. of rows = " & Worksheets(1).Cells(Worksheets(1).Rows.Count, "A").End(xlUp).Row & " Old Rows = " & old_rows
+        GoTo deleted_rows 'Skip most of the below code and go to the deleted_rows table
+    End If
+   
+    ' AUTOCOMPLETE ROUTINE
+    For Each cel In targ
+        If Not IsError(cel) Then
+            If cel <> "" And Right(cel, 1) <> Chr(10) Then
+                Set match1 = Nothing
+                Set match1 = rg.Find(cel & "*", LookAt:=xlWhole, MatchCase:=False) 'Match is case insensitive
+                If Not match1 Is Nothing Then
+                    Set match2 = rg.FindNext(After:=match1)
+                    If match2.Address = match1.Address Then 'Code is fooled by identical strings in two cells
+                        cel = match1 'Only one match found. Use it to "autocomplete" the cell
+                    Else 'More than one match found. User must enter more data. Return to "Edit" mode
+                        Target.Interior.ColorIndex = 3
+                        cel.Activate
+                        Application.SendKeys ("{F2}") 'Begin editing after last character entered
+                    End If
+                Else 'No matches found. Do not change entered text
+                End If
+            Else 'Strip the line feed from the end of the text string
+                If cel <> "" And Right(cel, 1) = Chr(10) Then cel = Left(cel, Len(cel) - 1)
+            End If
+        End If
+    Next cel
+   
+    If Target.Column = 1 Then 'Here we check for validity of command / no. of green boxes to create / Loop statements, to colour everything inside loop yellow
+        Dim i As Integer
+        Dim stop_index As Integer
+        Dim start_row As Integer, last_row As Integer
+        Dim rg_above As Range 'Sets range to find Iterate or End above target cell
+        Dim rg_below As Range 'Sets range to find Iterate or End below target cell
+        Dim iterate_above As Range, iterate_below As Range, end_above As Range, end_below As Range
+       
+        i = 1
+        While Cells(Target.Row, Target.Column + i).Interior.ColorIndex = 4 'You might be changing commands in the cell, remove all the green boxes
+            Cells(Target.Row, Target.Column + i).Interior.ColorIndex = 0
+            i = i + 1
+        Wend
+       
+        'The following if statements determine the no. of blocks for parameters (to turn green)
+        If Target.Value = "Pause" Then
+            stop_index = Pause.no_params
+        ElseIf Target.Value = "Infuse" Then
+            stop_index = Infuse.no_params
+        ElseIf Target.Value = "Withdraw" Then
+            stop_index = Withdraw.no_params
+        ElseIf Target.Value = "MoveTo" Then
+            stop_index = MoveTo.no_params
+        ElseIf Target.Value = "Iterate" Then
+            stop_index = Iterate.no_params
+        ElseIf Target.Value = "End" Then
+            Target.Interior.ColorIndex = 0 'This has no arguments and it a valid block
+            stop_index = 0
+        Else
+            Target.Interior.ColorIndex = 3 'If instruction not recognized, color it red
+            stop_index = 0
+            Target.Activate
+            Application.SendKeys ("{F2}")
+        End If
+   
+        If stop_index Then
+            Target.Interior.ColorIndex = 0 'The instruction is valid, if it is red, turn it to no fill
+            For i = 1 To stop_index
+                Cells(Target.Row, Target.Column + i).Interior.ColorIndex = 4 'Color all arguments green
+            Next i
+        End If
+       
+deleted_rows: 'If row(s) have been deleted, forget about everything from autocomplete to checking command validity. Just need to check for loops
+            old_rows = Worksheets(1).Cells(Worksheets(1).Rows.Count, "A").End(xlUp).Row 'Update the no. of current rows to compare against next time code is run
+            start_row = 8 'The first row in which we start putting in steps
+            last_row = old_rows 'Last row (same as no. of old_rows)
+            If Target.Row = last_row Then
+                last_row = last_row + 1
+            End If
+           
+           
+            Dim in_iterate As Integer
+            in_iterate = 0
+            For Each cel In Range("A8:A" & last_row)
+                If cel.Value = "Iterate" Or cel.Value = "End" Then
+                    If cel.Value = "Iterate" And in_iterate = 1 Then
+                        cel.Interior.ColorIndex = 3
+                    ElseIf cel.Value = "Iterate" And in_iterate = 0 Then
+                        in_iterate = 1
+                    ElseIf cel.Value = "End" And in_iterate = 1 Then
+                        in_iterate = 0
+                    ElseIf cel.Value = "End" And in_iterate = 0 Then
+                        cel.Interior.ColorIndex = 3
+                    End If
+               ElseIf in_iterate = 1 Then
+                   If cel.Interior.ColorIndex <> 3 Then
+                       cel.Interior.ColorIndex = 27
+                   End If
+                End If
+            Next cel
+
+               
+    End If
+
+errhandler:     Application.EnableEvents = True
+    On Error GoTo 0
+    Application.ScreenUpdating = True
+End Sub
+
+Private Sub Worksheet_SelectionChange(ByVal Target As Range)
+    If Target.Interior.ColorIndex = 4 Then
+        Dim func_cell_name As Range
+        Dim val  As Variant
+        Set func_cell_name = Cells(Target.Row, 1)
+        If func_cell_name.Value = "Pause" Then
+            val = InputBox(Pause.params(Target.Column - 1))
+        ElseIf func_cell_name.Value = "Infuse" Then
+            val = InputBox(Infuse.params(Target.Column - 1))
+        ElseIf func_cell_name.Value = "Withdraw" Then
+            val = InputBox(Withdraw.params(Target.Column - 1))
+        ElseIf func_cell_name.Value = "MoveTo" Then
+            val = InputBox(MoveTo.params(Target.Column - 1))
+        ElseIf func_cell_name.Value = "Iterate" Then
+            val = InputBox(Iterate.params(Target.Column - 1))
+        End If
+        Target.Value = val
+        Target.Interior.ColorIndex = 0
+    End If
+End Sub

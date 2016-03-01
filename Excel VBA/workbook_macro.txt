@@ -1,0 +1,25 @@
+Option Explicit
+
+Public Sub Workbook_Open()
+    Pause.no_params = 1
+    ReDim Pause.params(Pause.no_params) As String
+    Pause.params(1) = "Time (s)"
+   
+    Infuse.no_params = 2
+    ReDim Infuse.params(Infuse.no_params) As String
+    Infuse.params(1) = "Flow Rate (ul/min)"
+    Infuse.params(2) = "Volume (ul)"
+   
+    Withdraw.no_params = 2
+    ReDim Withdraw.params(Withdraw.no_params) As String
+    Withdraw.params(1) = "Flow Rate (ul/min)"
+    Withdraw.params(2) = "Volume (ul)"
+   
+    Iterate.no_params = 1
+    ReDim Iterate.params(Iterate.no_params) As String
+    Iterate.params(1) = "No. of times to Loop"
+   
+    MoveTo.no_params = 1
+    ReDim MoveTo.params(MoveTo.no_params) As String
+    MoveTo.params(1) = "Chemical (w/ concentration)"
+End Sub
