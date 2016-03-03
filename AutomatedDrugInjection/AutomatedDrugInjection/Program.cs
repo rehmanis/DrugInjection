@@ -38,7 +38,7 @@ namespace AutomaticDrugInjection
         static void Main(string[] args)
         {
 
-            string excelFile = @"C:\Documents and Settings\Admin\Desktop\automatedDrugTest.xlsx";
+            string excelFile = @"C:\Documents and Settings\Admin\Desktop\DrugInjection\AutomatedDrugInjection\automatedDrugTestTemplate.xlsm";
             ExcelPackage excelpack = new ExcelPackage(new System.IO.FileInfo(excelFile));
 
             ExcelWorksheet worksheetWithInstruction = excelpack.Workbook.Worksheets["Sheet1"];
@@ -106,7 +106,7 @@ namespace AutomaticDrugInjection
             }
 
             // Row to start reading instructions from
-            row = 1;
+            row = 8;
 
             // Goes row by row, reading and executing instructions sequentially
             while (row <= worksheetWithInstruction.Dimension.End.Row)
