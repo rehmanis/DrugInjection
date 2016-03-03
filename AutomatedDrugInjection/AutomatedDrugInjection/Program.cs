@@ -7,6 +7,8 @@ using OfficeOpenXml;
 using System.IO.Ports;
 using System.Text.RegularExpressions;
 using MG17_Drivers;
+using System.IO.Pipes;
+using System.IO;
 
 namespace AutomaticDrugInjection
 {
@@ -20,6 +22,10 @@ namespace AutomaticDrugInjection
         private const int MAX_Y = 305381;
         private const int YPOS_WELL_1H = 0; //(int)(140e-3 / 0.49609375e-6);
         private const string PUMP_ADDR = "2";
+       
+        private const double SPEEDX = 1; // speed of x-slide in mm/s
+        private const double SPEEDY = 1;  // speed of y-slide in mm/s
+        private const double SPEEDZ = 1; // speed of z-slide in mm/s
 
         private string lastChem = "";
         private Dictionary<string, List<string>> dict = new Dictionary<string, List<string>>();
@@ -28,6 +34,9 @@ namespace AutomaticDrugInjection
         private ZaberBinaryDevice slideY;
         private SerialPort pump;
         private string pump_response = "";
+        private int totalTime = 0;
+        private bool TIME_CALC = false;
+
         //private Program programObj = new Program();
 
         //Melles Griot Variables
@@ -37,8 +46,27 @@ namespace AutomaticDrugInjection
 
         static void Main(string[] args)
         {
+            string parentSenderId;
+            Program program = new Program();
 
-            string excelFile = @"C:\Documents and Settings\Admin\Desktop\automatedDrugTest.xlsx";
+
+            parentSenderId = args[0];
+            Console.WriteLine("{0}", args[0]);
+            Console.WriteLine("{0}", args[1]);
+
+            var sender = new AnonymousPipeClientStream(PipeDirection.Out, parentSenderId);
+
+            Console.WriteLine("outside stream");
+
+            if (args.Length == 3)
+            {
+                program.TIME_CALC = true;
+
+            }
+       
+
+
+            string excelFile = args[1]; //@"C:\Documents and Settings\Admin\Desktop\automatedDrugTest.xlsx";
             ExcelPackage excelpack = new ExcelPackage(new System.IO.FileInfo(excelFile));
 
             ExcelWorksheet worksheetWithInstruction = excelpack.Workbook.Worksheets["Sheet1"];
@@ -56,48 +84,52 @@ namespace AutomaticDrugInjection
             int iterateRow = 1;
             int countOfLoops = 1;
 
-            Program program = new Program();
+            
 
-            // Initialization of the Zaber Slides and the Automated Syringe Pump
-            program.port = new ZaberBinaryPort("COM4");
-            program.pump = new SerialPort("COM3", 1200, Parity.None, 8, StopBits.One);
+            if(program.TIME_CALC == false)
+            {
+                // Initialization of the Zaber Slides and the Automated Syringe Pump
+                program.port = new ZaberBinaryPort("COM4");
+                program.pump = new SerialPort("COM3", 1200, Parity.None, 8, StopBits.One);
 
-            //Initialization Sequence for the Melles Griot Slide
-            program.cf = new Config();
-            program.ns = new NanoSteps();
-            program.cf.SetupAConfiguration("nanostep1");
-            int numNanoSteps;
-            program.cf.GetNumNanoSteps(out numNanoSteps);
-            program.nanoStepNames = new string[numNanoSteps];
-            program.cf.GetNanoStepNames(ref program.nanoStepNames);
-            System.Array velParams;
-            velParams = new Double[3];
-            velParams.SetValue(1, 0);
-            velParams.SetValue(2, 1);
-            velParams.SetValue(6, 2);
-            program.ns.SingleSetVelocityProfile(program.nanoStepNames.GetValue(0).ToString(), ref velParams);
-            // Ensure that the Home command is done when the zaber slides are at the max position away from the needle
-            // Otherwise the microplate might clash with the needle if the z-axis is homed
-            program.ns.SingleHome(program.nanoStepNames.GetValue(0).ToString());
-            program.ns.SingleMoveAbsoluteAndWait(program.nanoStepNames.GetValue(0).ToString(), 5.0, 0);
-            program.ns.SingleMoveAbsoluteAndWait(program.nanoStepNames.GetValue(0).ToString(), 10.0, 0);
+                //Initialization Sequence for the Melles Griot Slide
+                program.cf = new Config();
+                program.ns = new NanoSteps();
+                program.cf.SetupAConfiguration("nanostep1");
+                int numNanoSteps;
+                program.cf.GetNumNanoSteps(out numNanoSteps);
+                program.nanoStepNames = new string[numNanoSteps];
+                program.cf.GetNanoStepNames(ref program.nanoStepNames);
+                System.Array velParams;
+                velParams = new Double[3];
+                velParams.SetValue(1, 0);
+                velParams.SetValue(2, 1);
+                velParams.SetValue(6, 2);
+                program.ns.SingleSetVelocityProfile(program.nanoStepNames.GetValue(0).ToString(), ref velParams);
+                // Ensure that the Home command is done when the zaber slides are at the max position away from the needle
+                // Otherwise the microplate might clash with the needle if the z-axis is homed
+                program.ns.SingleHome(program.nanoStepNames.GetValue(0).ToString());
+                program.ns.SingleMoveAbsoluteAndWait(program.nanoStepNames.GetValue(0).ToString(), 5.0, 0);
+                program.ns.SingleMoveAbsoluteAndWait(program.nanoStepNames.GetValue(0).ToString(), 10.0, 0);
 
 
-            // Opens the ports for the zaber slides and the pump 
-            program.port.Open();
-            program.pump.Open();
-            program.pump.DataReceived += new SerialDataReceivedEventHandler(program.DataReceivedHandler);
+                // Opens the ports for the zaber slides and the pump 
+                program.port.Open();
+                program.pump.Open();
+                program.pump.DataReceived += new SerialDataReceivedEventHandler(program.DataReceivedHandler);
 
-            // Initialize each of the linear stages
-            program.slideX = new ZaberBinaryDevice(program.port, 1);
-            program.slideY = new ZaberBinaryDevice(program.port, 2);
-            program.slideY.Home();
-            program.slideY.PollUntilIdle();
+                // Initialize each of the linear stages
+                program.slideX = new ZaberBinaryDevice(program.port, 1);
+                program.slideY = new ZaberBinaryDevice(program.port, 2);
+                program.slideY.Home();
+                program.slideY.PollUntilIdle();
 
-            program.slideX.MoveAbsolute(XPOS_WELL_1H);
-            program.slideX.PollUntilIdle();
-            program.slideY.MoveAbsolute(YPOS_WELL_1H);
-            program.slideY.PollUntilIdle();
+                program.slideX.MoveAbsolute(XPOS_WELL_1H);
+                program.slideX.PollUntilIdle();
+                program.slideY.MoveAbsolute(YPOS_WELL_1H);
+                program.slideY.PollUntilIdle();
+            }
+            
 
             // Reads all the chemical names and their well locations and stores them in a dictionary (dict).
             for (row = 1; row <= worksheetWithChemToWell.Dimension.End.Row; row++)
@@ -114,7 +146,8 @@ namespace AutomaticDrugInjection
                 // Populates funcParamsList with the current instructions and its parameters
                 program.ReadRow(worksheetWithInstruction, row, funcParamsList);
 
-                //Get method name from first element of the list and then remove it from the list
+                //Get the method name from first element of the list, ignoring the white spaces, and later
+                //remove it from the list.
                 methodName = funcParamsList.First().Trim();
                 funcParamsList.RemoveAt(0);
 
@@ -147,16 +180,30 @@ namespace AutomaticDrugInjection
 
             }
 
-            program.ns.SingleMoveAbsoluteAndWait(program.nanoStepNames.GetValue(0).ToString(), 5.0, 0);
-            program.ns.SingleMoveAbsoluteAndWait(program.nanoStepNames.GetValue(0).ToString(), 10.0, 0);
+            if (program.TIME_CALC == false)
+            {
+                program.ns.SingleMoveAbsoluteAndWait(program.nanoStepNames.GetValue(0).ToString(), 5.0, 0);
+                program.ns.SingleMoveAbsoluteAndWait(program.nanoStepNames.GetValue(0).ToString(), 10.0, 0);
 
-            program.slideX.MoveAbsolute(MAX_X);
-            program.slideY.Home();
-            program.slideX.PollUntilIdle();
-            program.slideY.PollUntilIdle();
+                program.slideX.MoveAbsolute(MAX_X);
+                program.slideY.Home();
+                program.slideX.PollUntilIdle();
+                program.slideY.PollUntilIdle();
 
-            program.port.Close();
-            Console.ReadLine();
+                program.port.Close();
+            }
+            else
+            {
+                using (StreamWriter sw = new StreamWriter(sender))
+                {
+                    Console.WriteLine("using streamwriter");
+                    sw.AutoFlush = true;
+                    sw.WriteLine("{0}", program.totalTime.ToString());
+                }
+            }
+
+
+
         }
 
         /// <summary>
@@ -236,58 +283,65 @@ namespace AutomaticDrugInjection
         /// <param name="volWithdraw">The volume to withdraw</param>
         public void Withdraw(string flowRate, string volWithdraw)
         {
-            Console.WriteLine("Infuse");
+            Console.WriteLine("Withdraw");
 
-            string str;
-            string rate_units = @"mlm";
-            string vol_units = @"ml";
-            Regex resp_regex = new Regex(@"\r\n" + PUMP_ADDR + @"\S{1,2}");
-
-            str = PUMP_ADDR + " mode w\r";
-            pump.Write(str);
-            while (!resp_regex.Match(pump_response).Success)
-                continue;
-            Console.WriteLine("{0}", pump_response);
-            pump_response = "";
-            System.Threading.Thread.Sleep(2000);
-
-
-            str = PUMP_ADDR + " ratew " + flowRate + " " + rate_units + "\r";
-            pump.Write(str);
-            while (!resp_regex.Match(pump_response).Success)
-                continue;
-            Console.WriteLine("{0}", pump_response);
-            pump_response = "";
-            System.Threading.Thread.Sleep(2000);
-
-            str = PUMP_ADDR + " volw " + volWithdraw + " " + vol_units + "\r";
-            pump.Write(str);
-            while (!resp_regex.Match(pump_response).Success)
-                continue;
-            Console.WriteLine("{0}", pump_response);
-            pump_response = "";
-            System.Threading.Thread.Sleep(2000);
-
-            str = PUMP_ADDR + " run\r";
-            pump.Write(str);
-            while (!resp_regex.Match(pump_response).Success)
-                continue;
-            Console.WriteLine("{0}", pump_response);
-            System.Threading.Thread.Sleep(2000);
-
-            while (pump_response[pump_response.Length - 1] != ':')
+            if (TIME_CALC == false)
             {
-                pump_response = "";
-                System.Threading.Thread.Sleep(10000);
-                str = PUMP_ADDR + " run?\r";
+                string str;
+                string rate_units = @"mlm";
+                string vol_units = @"ml";
+                Regex resp_regex = new Regex(@"\r\n" + PUMP_ADDR + @"\S{1,2}");
+
+                str = PUMP_ADDR + " mode w\r";
                 pump.Write(str);
                 while (!resp_regex.Match(pump_response).Success)
                     continue;
                 Console.WriteLine("{0}", pump_response);
-                Console.WriteLine("{0}", "Inside Loop");
-                continue;
+                pump_response = "";
+                System.Threading.Thread.Sleep(2000);
+
+
+                str = PUMP_ADDR + " ratew " + flowRate + " " + rate_units + "\r";
+                pump.Write(str);
+                while (!resp_regex.Match(pump_response).Success)
+                    continue;
+                Console.WriteLine("{0}", pump_response);
+                pump_response = "";
+                System.Threading.Thread.Sleep(2000);
+
+                str = PUMP_ADDR + " volw " + volWithdraw + " " + vol_units + "\r";
+                pump.Write(str);
+                while (!resp_regex.Match(pump_response).Success)
+                    continue;
+                Console.WriteLine("{0}", pump_response);
+                pump_response = "";
+                System.Threading.Thread.Sleep(2000);
+
+                str = PUMP_ADDR + " run\r";
+                pump.Write(str);
+                while (!resp_regex.Match(pump_response).Success)
+                    continue;
+                Console.WriteLine("{0}", pump_response);
+                System.Threading.Thread.Sleep(2000);
+
+                while (pump_response[pump_response.Length - 1] != ':')
+                {
+                    pump_response = "";
+                    System.Threading.Thread.Sleep(10000);
+                    str = PUMP_ADDR + " run?\r";
+                    pump.Write(str);
+                    while (!resp_regex.Match(pump_response).Success)
+                        continue;
+                    Console.WriteLine("{0}", pump_response);
+                    Console.WriteLine("{0}", "Inside Loop");
+                    continue;
+                }
+                pump_response = "";
+
             }
-            pump_response = "";
+            else 
+                totalTime += (int)(Double.Parse(volWithdraw) / Double.Parse(flowRate));
+
 
         }
 
@@ -300,55 +354,61 @@ namespace AutomaticDrugInjection
         {
             Console.WriteLine("Infuse");
 
-            string str;
-            string rate_units = @"mlm";
-            string vol_units = @"ml";
-            Regex resp_regex = new Regex(@"\r\n" + PUMP_ADDR + @"\S{1,2}");
-
-            str = PUMP_ADDR + " mode i\r";
-            pump.Write(str);
-            while (!resp_regex.Match(pump_response).Success)
-                continue;
-            Console.WriteLine("{0}", pump_response);
-            pump_response = "";
-            System.Threading.Thread.Sleep(2000);
-
-
-            str = PUMP_ADDR + " ratei " + flowRate + " " + rate_units + "\r";
-            pump.Write(str);
-            while (!resp_regex.Match(pump_response).Success)
-                continue;
-            Console.WriteLine("{0}", pump_response);
-            pump_response = "";
-            System.Threading.Thread.Sleep(2000);
-
-            str = PUMP_ADDR + " voli " + volInfused + " " + vol_units + "\r";
-            pump.Write(str);
-            while (!resp_regex.Match(pump_response).Success)
-                continue;
-            Console.WriteLine("{0}", pump_response);
-            pump_response = "";
-            System.Threading.Thread.Sleep(2000);
-
-            str = PUMP_ADDR + " run\r";
-            pump.Write(str);
-            while (!resp_regex.Match(pump_response).Success)
-                continue;
-            Console.WriteLine("{0}", pump_response);
-            System.Threading.Thread.Sleep(2000);
-
-            while (pump_response[pump_response.Length - 1] != ':')
+            if (TIME_CALC == false)
             {
-                pump_response = "";
-                System.Threading.Thread.Sleep(10000);
-                str = PUMP_ADDR + " run?\r";
+                string str;
+                string rate_units = @"mlm";
+                string vol_units = @"ml";
+                Regex resp_regex = new Regex(@"\r\n" + PUMP_ADDR + @"\S{1,2}");
+
+                str = PUMP_ADDR + " mode i\r";
                 pump.Write(str);
                 while (!resp_regex.Match(pump_response).Success)
                     continue;
                 Console.WriteLine("{0}", pump_response);
                 pump_response = "";
-                continue;
+                System.Threading.Thread.Sleep(2000);
+
+
+                str = PUMP_ADDR + " ratei " + flowRate + " " + rate_units + "\r";
+                pump.Write(str);
+                while (!resp_regex.Match(pump_response).Success)
+                    continue;
+                Console.WriteLine("{0}", pump_response);
+                pump_response = "";
+                System.Threading.Thread.Sleep(2000);
+
+                str = PUMP_ADDR + " voli " + volInfused + " " + vol_units + "\r";
+                pump.Write(str);
+                while (!resp_regex.Match(pump_response).Success)
+                    continue;
+                Console.WriteLine("{0}", pump_response);
+                pump_response = "";
+                System.Threading.Thread.Sleep(2000);
+
+                str = PUMP_ADDR + " run\r";
+                pump.Write(str);
+                while (!resp_regex.Match(pump_response).Success)
+                    continue;
+                Console.WriteLine("{0}", pump_response);
+                System.Threading.Thread.Sleep(2000);
+
+                while (pump_response[pump_response.Length - 1] != ':')
+                {
+                    pump_response = "";
+                    System.Threading.Thread.Sleep(10000);
+                    str = PUMP_ADDR + " run?\r";
+                    pump.Write(str);
+                    while (!resp_regex.Match(pump_response).Success)
+                        continue;
+                    Console.WriteLine("{0}", pump_response);
+                    pump_response = "";
+                    continue;
+                }
+
             }
+            else
+                totalTime += (int)(Double.Parse(volInfused) / Double.Parse(flowRate));
 
         }
 
@@ -358,14 +418,18 @@ namespace AutomaticDrugInjection
         /// <param name="chemical">The name of the chemical to move to</param>
         public void MoveTo(string chemical)
         {
-            //We should first lower the melles griot slide to get out of the current well
-            double z_pos;
-            ns.SingleGetPosition(nanoStepNames.GetValue(0).ToString(), out z_pos);
-            if (!(Math.Abs(z_pos - 10.0) < 0.1))
+            if (TIME_CALC == false)
             {
-                ns.SingleMoveAbsoluteAndWait(nanoStepNames.GetValue(0).ToString(), 5.0, 0);
-                ns.SingleMoveAbsoluteAndWait(nanoStepNames.GetValue(0).ToString(), 10.0, 0);
+                //We should first lower the melles griot slide to get out of the current well
+                double z_pos;
+                ns.SingleGetPosition(nanoStepNames.GetValue(0).ToString(), out z_pos);
+                if (!(Math.Abs(z_pos - 10.0) < 0.1))
+                {
+                    ns.SingleMoveAbsoluteAndWait(nanoStepNames.GetValue(0).ToString(), 5.0, 0);
+                    ns.SingleMoveAbsoluteAndWait(nanoStepNames.GetValue(0).ToString(), 10.0, 0);
+                }
             }
+
 
             Console.WriteLine("move");
             // Initialize a list to store all the well locations specified in the dictionary
@@ -379,23 +443,40 @@ namespace AutomaticDrugInjection
             string nextChemConc = (regex.Match(chemical)).ToString();
             string lastChemConc = (regex.Match(lastChem)).ToString();
 
-            // The only reason to avoid a rinse cycle, will be if the last chemical and the current chemical
-            // are the same and the current one is at a higher concentration than the last
-            if (nextChemConc == "" || lastChemConc == "" || !(Double.Parse(nextChemConc) > Double.Parse(lastChemConc) && String.Equals(chemical, lastChem, StringComparison.Ordinal)))
-                Rinse();
 
             // Specifies the absolute positions of the well to move to
             int nextPosX = (7 - nextRow) * WELLTOWELLSPAC_X;
             int nextPosY = (nextCol - 1) * WELLTOWELLSPAC_Y;
 
-            slideX.MoveAbsolute(nextPosX);
-            slideY.MoveAbsolute(nextPosY);
+            // The only reason to avoid a rinse cycle, will be if the last chemical and the current chemical
+            // are the same and the current one is at a higher concentration than the last
+            if (nextChemConc == "" || lastChemConc == "" || !(Double.Parse(nextChemConc) > Double.Parse(lastChemConc)
+                && String.Equals(chemical, lastChem, StringComparison.Ordinal)))
+            {
+                if (TIME_CALC == false)
+                {
+                    Rinse();
+                }
+                
+                totalTime += (int)(6*10/SPEEDZ + 3 * 10/SPEEDX) ;
+            }
+                
 
-            slideX.PollUntilIdle();
-            slideY.PollUntilIdle();
 
-            // Move the microplate well to the needle
-            ns.SingleHome(nanoStepNames.GetValue(0).ToString());
+            if (TIME_CALC == false)
+            {
+                slideX.MoveAbsolute(nextPosX);
+                slideY.MoveAbsolute(nextPosY);
+
+                slideX.PollUntilIdle();
+                slideY.PollUntilIdle();
+
+                // Move the microplate well to the needle
+                ns.SingleHome(nanoStepNames.GetValue(0).ToString());
+            }
+            else
+                //totalTime += (int)((Math.Abs(nextPosX))/SPEEDX + 
+                    //Math.Abs(nextPosX)/SPEEDY);
 
             Console.WriteLine("WellColNum: {0}", nextCol);
             Console.WriteLine("WellRowNum: {0}", nextRow);
@@ -405,7 +486,7 @@ namespace AutomaticDrugInjection
             dict[chemical].Remove(wellNums.First());
             // update last chemical
             lastChem = chemical;
-
+            Console.WriteLine("done move");
         }
         /// <summary>
         /// The method pauses the program before executing the next instruction
@@ -415,6 +496,7 @@ namespace AutomaticDrugInjection
         {
             Console.WriteLine("Pause");
             System.Threading.Thread.Sleep(Int32.Parse(seconds) * MILLISEC);
+            totalTime += Int32.Parse(seconds);
         }
 
         /// <summary>
