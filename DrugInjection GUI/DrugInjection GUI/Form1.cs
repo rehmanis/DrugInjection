@@ -17,6 +17,7 @@ namespace DrugInjection_GUI
 {
     public partial class Form1 : Form
     {
+        //intialize file name, communication thread and process for com
         private string fileName = "";
         private Thread commun;
         private Process child;
@@ -29,12 +30,13 @@ namespace DrugInjection_GUI
             InitializeComponent();
         }
         
-       
+       //browsw button
         private void button1_Click(object sender, EventArgs e)
         {
             DialogResult result = openFileDialog1.ShowDialog();
             if (result == DialogResult.OK) // Test result.
             {
+                //store the browswed file name and path 
                 textBox1.Text = openFileDialog1.FileName;
             }
             Console.WriteLine(result);// <-- For debugging use.
@@ -43,53 +45,73 @@ namespace DrugInjection_GUI
         //Run button
         private void button2_Click(object sender, EventArgs e)
         {
-            
 
+            //store the browswed file name and path shown in the text box to the variable fileName
             fileName = textBox1.Text;
+
+            //if filename is not an empty string, enter the if block
             if (fileName.Length != 0)
             {
-
+                //if file name exists at the path specified, enter the if block
                 if (File.Exists(fileName))
                 {
+                    //create a new thread that runs the recData function, taking file name as input argument
                     commun = new Thread(() => recData(fileName));
-                    //MessageBox.Show("After thread");
+                    
+                    //start the new thread
                     commun.Start();
+
+                    // run button should be set to false once it has been pressed
                     Button2.Enabled = false;
+                    // the pause and stop button should now be set to true since the experiment is now run
+                    // and the user has the option to stop or pause the experiment
                     button3.Enabled = true;
                     button4.Enabled = true;
 
-                    //timer1.Start();
-                    //timer1.Enabled = true;
-
                 }
                 else
-                    MessageBox.Show("File Does Not Exist!!!", "Unknown File Exception", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+                    // if filename does not exist at the specified path, show a pop-up window with error message
+                    MessageBox.Show("File Does Not Exist!!!", "Unknown File Exception", 
+                        MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             else
+                // if file name text box is empty, show a pop-up window with error message
                 MessageBox.Show("Specify Experiment File", "No File Exception",
                     MessageBoxButtons.OK, MessageBoxIcon.Warning);
 
         }
 
+        /// <summary>
+        /// The function runs in a new thread where is executes the main drug injection code
+        /// </summary>
+        /// <param name="filename"> excel file with the instructions that the user selected using the browse button</param>
         private void recData (string filename)
         {
-            //MessageBox.Show("In recData");
+            // create a new receiver anonymous pipeline for communication between 
+            //this GUI and the main drug automation code
             var receiver = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
+
+            // store a receiver ID for communication purposes
             string receiverID = receiver.GetClientHandleAsString();
 
-            string clientpath = @"C:\Users\Shamsuddin\Documents\ENPH 459\C# code\TestFileCreater\TestFileCreater\bin\Debug\TestFileCreater.exe";
+            // store the path location of the main drug injection code
+            string clientpath = @"C:\Users\Shamsuddin\Documents\ENPH 459\DrugInjection\AutomatedDrugInjection\AutomatedDrugInjection\bin\Debug\AutomatedDrugInjection.exe";
 
-
-            var startInfo = new ProcessStartInfo(clientpath,receiverID +" "+ "\""+ fileName + "\"");
+            // Creating the process info. 
+            var startInfo = new ProcessStartInfo(clientpath,receiverID +" "+ "\""+ fileName + "\""+ " " + "true" );
 
             startInfo.UseShellExecute = false;
     
-            
+            // start the process providing all the information needed to run the main code
             child = Process.Start(startInfo);
+            //closes the local copy of the anonymousPipeClientStream's object handle
             receiver.DisposeLocalCopyOfClientHandle();
 
+            //while the process is running i.e the main drug injection code is executing.
             while (!child.HasExited)
             {
+                // streamReader object receives info from the main code and stores it in a string line
+                // message box is used to show the contents of line
                 using (StreamReader sr = new StreamReader(receiver))
                 {
                     string line;
@@ -99,12 +121,13 @@ namespace DrugInjection_GUI
                         if ((line = sr.ReadLine()) != null)
                         {
                             Console.WriteLine("{0}", line);
-                            //MessageBox.Show(line);
+                            MessageBox.Show(line);
                         }
                     }
                     catch (Exception e) {  }
                 }
             }
+            // The default controlling of button defined in another thread is not allowed because of thread safety reasons
             Control.CheckForIllegalCrossThreadCalls = false;
             Button2.Enabled = true;
             Control.CheckForIllegalCrossThreadCalls = true;
@@ -112,18 +135,16 @@ namespace DrugInjection_GUI
 
         }
 
-        private void timer1_Tick(object sender, EventArgs e)
-        {
-            progressBar1.Increment(+1);
-        }
-        //pause
+
+        //pause button
         private void button3_Click(object sender, EventArgs e)
         {
             button3.Enabled = false;
             button5.Enabled = true;
             SuspendProcess(child.Id);
         }
-        //stop
+
+        //stop button
         private void button4_Click(object sender, EventArgs e)
         {
             child.Kill();
@@ -133,7 +154,8 @@ namespace DrugInjection_GUI
             button4.Enabled = false;
             button5.Enabled = false;
         }
-        //resume
+
+        //resume button
         private void button5_Click(object sender, EventArgs e)
         {
             button5.Enabled = false;
@@ -143,6 +165,9 @@ namespace DrugInjection_GUI
             
         }
 
+        // the code below was taken from http://stackoverflow.com/questions/71257/suspend-process-in-c-sharp
+        // it is used in the pause and resume button to pause or resume the thread that is running the main
+        // drug injection code
 
         [Flags]
         public enum ThreadAccess : int
@@ -169,7 +194,10 @@ namespace DrugInjection_GUI
         public static extern bool CloseHandle(IntPtr hObject);
 
 
-
+        /// <summary>
+        /// pauses the process with ID pid
+        /// </summary>
+        /// <param name="pid"> process ID </param>
         private static void SuspendProcess(int pid)
         {
             var process = Process.GetProcessById(pid);
@@ -192,7 +220,10 @@ namespace DrugInjection_GUI
           
             }
         }
-
+        /// <summary>
+        /// resume the process with ID pid
+        /// </summary>
+        /// <param name="pid"> process ID</param>
         public static void ResumeProcess(int pid)
         {
             var process = Process.GetProcessById(pid);
