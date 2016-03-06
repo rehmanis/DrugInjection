@@ -1,4 +1,5 @@
 ﻿
+//#define CALIBRATE
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -13,8 +14,8 @@ namespace AutomaticDrugInjection
     class Program
     {
         private const int MILLISEC = 1000;
-        private const int WELLTOWELLSPAC_X = (int)(8.85e-3 / 1.984375e-6);
-        private const int WELLTOWELLSPAC_Y = (int)(9e-3 / 0.49609375e-6);
+        private const int WELLTOWELLSPAC_X = 4464; //(int)(8.8e-3 / 1.984375e-6);
+        private const int WELLTOWELLSPAC_Y = 18027;//(int)(9e-3 / 0.49609375e-6);
         private const int XPOS_WELL_1H = 0; //(int)(140e-3 / 1.984375e-6);
         private const int MAX_X = 227527;
         private const int MAX_Y = 305381;
@@ -99,6 +100,8 @@ namespace AutomaticDrugInjection
             program.slideY.MoveAbsolute(YPOS_WELL_1H);
             program.slideY.PollUntilIdle();
 
+#if !CALIBRATE
+
             // Reads all the chemical names and their well locations and stores them in a dictionary (dict).
             for (row = 1; row <= worksheetWithChemToWell.Dimension.End.Row; row++)
             {
@@ -157,6 +160,7 @@ namespace AutomaticDrugInjection
 
             program.port.Close();
             Console.ReadLine();
+#endif
         }
 
         /// <summary>
@@ -346,9 +350,9 @@ namespace AutomaticDrugInjection
                 while (!resp_regex.Match(pump_response).Success)
                     continue;
                 Console.WriteLine("{0}", pump_response);
-                pump_response = "";
                 continue;
             }
+            pump_response = "";
 
         }
 
@@ -369,9 +373,13 @@ namespace AutomaticDrugInjection
 
             Console.WriteLine("move");
             // Initialize a list to store all the well locations specified in the dictionary
+            var regex_wellCol = new Regex(@"\d+");
+            var regex_wellRow = new Regex(@"(?i)[A-H]{1}");
             List<string> wellNums = dict[chemical];
-            int nextCol = (int)char.GetNumericValue(((wellNums.First())[0]));
-            int nextRow = ((wellNums.First())[1]) - 'A';
+            int nextCol = Int32.Parse((regex_wellCol.Match(wellNums.First())).ToString());
+            int nextRow = regex_wellRow.Match(wellNums.First()).ToString()[0] - 'A';
+            //int nextCol = (int)char.GetNumericValue(((wellNums.First())[0]));// yslide 
+            //int nextRow = ((wellNums.First())[1]) - 'A';// xslide
 
             // Regular expression to define the syntax for concentration (e.g. 3.5M)
             // If it is 3.5 M, this will extract 3.5 (MIGHT NEED TO RECONSIDER THIS REGULAR EXPRESSION)
