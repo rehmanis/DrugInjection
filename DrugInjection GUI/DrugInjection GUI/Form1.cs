@@ -12,6 +12,9 @@ using System.IO;
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
+using MG17_Drivers;
+using Zaber.Serial.Core;
+using System.IO.Ports;
 
 namespace DrugInjection_GUI
 {
@@ -28,6 +31,7 @@ namespace DrugInjection_GUI
         public Form1()
         {
             InitializeComponent();
+            SetConsoleCtrlHandler(ParentCheck, true);
         }
         
        //browsw button
@@ -95,7 +99,7 @@ namespace DrugInjection_GUI
             string receiverID = receiver.GetClientHandleAsString();
 
             // store the path location of the main drug injection code
-            string clientpath = @"C:\Users\Shamsuddin\Documents\ENPH 459\DrugInjection\AutomatedDrugInjection\AutomatedDrugInjection\bin\Debug\AutomatedDrugInjection.exe";
+            string clientpath = @"C:\Documents and Settings\Admin\Desktop\DrugInjection\AutomatedDrugInjection\AutomatedDrugInjection\bin\Release\AutomatedDrugInjection.exe";
 
             // Creating the process info. 
             var startInfo = new ProcessStartInfo(clientpath,receiverID +" "+ "\""+ fileName + "\""+ " " + "true" );
@@ -144,15 +148,44 @@ namespace DrugInjection_GUI
             SuspendProcess(child.Id);
         }
 
+        [DllImport("kernel32.dll")]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        static extern bool GenerateConsoleCtrlEvent(uint dwCtrlEvent, uint dwProcessGroupId);
+
+        private delegate bool HandlerRoutine(CtrlTypes CtrlType);
+
+        [DllImport("Kernel32")]
+        private static extern bool SetConsoleCtrlHandler(HandlerRoutine Handler, bool Add);
+
+        // control messages
+        public enum CtrlTypes
+        {
+            CTRL_C_EVENT = 0,
+            CTRL_BREAK_EVENT,
+            CTRL_CLOSE_EVENT,
+            CTRL_LOGOFF_EVENT = 5,
+            CTRL_SHUTDOWN_EVENT
+        }
+
         //stop button
         private void button4_Click(object sender, EventArgs e)
         {
             child.Kill();
+            //child.Close();
+            
+            //GenerateConsoleCtrlEvent(Convert.ToUInt32(CtrlTypes.CTRL_C_EVENT) , Convert.ToUInt32(child.Id));
+            //child.WaitForExit();
             commun.Abort();
+
             Button2.Enabled = true;
             button3.Enabled = false;
             button4.Enabled = false;
             button5.Enabled = false;
+        }
+
+        private bool ParentCheck(CtrlTypes sig)
+        {
+            return true;
         }
 
         //resume button
