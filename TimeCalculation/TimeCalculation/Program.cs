@@ -17,14 +17,14 @@ namespace TimeCalculation
 
         private const double MILLI = 1e-3;
 
-        // All speed are in m/s
-        private const int X_SPEED = 1; 
-        private const int Y_SPEED = 1;
-        private const int Z_SPEED = 1;
+        // All speed are in mm/s
+        private const double X_SPEED = 54.4; 
+        private const double Y_SPEED = 13.6;
 
-        // First well row and col location of where rinsing of the needle begins
-        private const int WELL_X_REF = 7;
-        private const int WELL_Y_REF = 1;
+        private const double Z_OFFSET = 17.0;
+        // Time for Z-Slide
+        private const double Z_HOME_TIME = Z_OFFSET;
+        private const double Z_DOWN_TIME = (17.0 / 9) * Z_OFFSET;
 
         // well to well distance is 9 mm
         private const int WELL_DIS = 9;
@@ -32,12 +32,13 @@ namespace TimeCalculation
         // Total time for running the one experiment
         private double totalTime = 0.0;
         private string lastChem = "";
-        
+        private int curExlRow = 0;
+        StreamWriter sw;
+        AnonymousPipeClientStream sender;
+
         // intialize a mulit value dictionary to store chemcial as key and their well locations as list of values
         private Dictionary<string, List<string>> dict = new Dictionary<string, List<string>>();
-        private int curColPos = 1;
-        private int curRowPos = 7;
-
+        
         static void Main(string[] args)
         {
         
@@ -46,7 +47,9 @@ namespace TimeCalculation
 
             parentSenderId = args[0];
 
-            var sender = new AnonymousPipeClientStream(PipeDirection.Out, parentSenderId);
+            program.sender = new AnonymousPipeClientStream(PipeDirection.Out, parentSenderId);
+            program.sw = new StreamWriter(program.sender);
+            program.sw.AutoFlush = true;
 
             // get the excel file path from the GUI 
             string excelFile = args[1]; //@"C:\Documents and Settings\Admin\Desktop\automatedDrugTest.xlsx";
@@ -54,6 +57,10 @@ namespace TimeCalculation
 
             ExcelWorksheet worksheetWithInstruction = excelpack.Workbook.Worksheets["Sheet1"];
             ExcelWorksheet worksheetWithChemToWell = excelpack.Workbook.Worksheets["Sheet2"];
+
+            // Before starting the experiment, the z-slide home and goes back down, and the x-y slide go to their home positions
+            program.totalTime += Z_HOME_TIME + Z_DOWN_TIME;
+            program.totalTime += 450 / X_SPEED;
 
             // Holds the current function (the row being executed in excel) to be executed and its parameters
             // Is emptied after each instruction is executed and then populated with the next instruction
@@ -74,11 +81,12 @@ namespace TimeCalculation
             }
 
             // Row to start reading instructions from
-            row = 1;
+            row = 9;
 
             // Goes row by row, reading and executing instructions sequentially
             while (row <= worksheetWithInstruction.Dimension.End.Row)
             {
+                program.curExlRow = row;
                 // Populates funcParamsList with the current instructions and its parameters
                 program.ReadRow(worksheetWithInstruction, row, funcParamsList);
 
@@ -116,13 +124,14 @@ namespace TimeCalculation
 
             }
 
-            using (StreamWriter sw = new StreamWriter(sender))
-            {
-                Console.WriteLine("using streamwriter");
-                sw.AutoFlush = true;
-                sw.WriteLine("{0}", program.totalTime.ToString());
-            }
-            Console.ReadLine();
+
+            Console.WriteLine("using streamwriter");
+
+            program.sw.WriteLine("0 {0}", program.totalTime.ToString());
+
+            Console.WriteLine("{0}", program.totalTime);
+
+            //Console.ReadLine();
         }
         /// <summary>
         /// Reads the specified row from an excel worksheet
@@ -172,17 +181,51 @@ namespace TimeCalculation
 
         public void AddTime(string method, List<string> funcParamsList )
         {
-
-
-
-
+            double z_move_time;
+            int pause_time;
+            int curRowPos = 7, curColPos = 1, nextRowPos, nextColPos;
+            bool in_well = false;
+            double inf_wrw_time;
             switch (method)
             {
                 case "Pause":
                     Console.WriteLine("Pause");
                     // add the time the needle pauses at a well to the total time for running the experiment.
                     // This is stored in the FuncParamsList
-                    totalTime += Int32.Parse(funcParamsList.First());
+                    pause_time = Int32.Parse(funcParamsList.First());
+                    if (pause_time > 15)
+                    {
+                        Console.WriteLine(curExlRow.ToString() + " " + pause_time.ToString() + " Pause for " + pause_time.ToString());
+                        //sw = new StreamWriter(sender);
+                        /*using (sw = new StreamWriter(sender))
+                        {
+                            sw.WriteLine(curExlRow.ToString() + " " + pause_time.ToString() + " Pause for " + pause_time.ToString());
+                            //sw.Dispose();
+                        }*/
+                        sw.WriteLine(curExlRow.ToString() + " " + pause_time.ToString() + " Pause for " + pause_time.ToString());
+
+                        
+                    }
+                    totalTime += pause_time;
+                    break;
+
+                case "Rinse":
+                    Console.WriteLine("Rinse");
+                    nextRowPos = 7;
+                    nextColPos = 1;
+                    
+                    if (!in_well)
+                        z_move_time = 3 * (Z_HOME_TIME + Z_DOWN_TIME);
+                    else
+                        z_move_time = 3 * Z_HOME_TIME + 4 * Z_DOWN_TIME;
+
+                    double xy_move_time = WELL_DIS * (Math.Abs(curRowPos - nextRowPos) / X_SPEED + Math.Abs(curColPos - nextColPos) / Y_SPEED)
+                         + 2 * WELL_DIS * (1 / Y_SPEED);
+                    double rinse_time = 3 * int.Parse(funcParamsList.First());
+                    totalTime += rinse_time + xy_move_time + z_move_time;
+                    curRowPos = 7;
+                    curColPos = 3;
+                    in_well = false;
                     break;
 
                 case "Infuse": case "Withdraw":
@@ -221,23 +264,40 @@ namespace TimeCalculation
                     if (result == 0)
                     {
                         Console.WriteLine("volume units is same");
-                        totalTime += CalculateTime(vol, flowrate, rateTimeUnits, 1);
+                        inf_wrw_time = CalculateTime(vol, flowrate, rateTimeUnits, 1);
                     }
                     // flow rate has a smaller volume unit than vol's volume unit. Example, flowrate is ul/s and vol is ml
                     // for this experiment, we are assuming that only ml and ul are the only options
                     else if (result > 0)
                     {
                         Console.WriteLine("flowrate volume units is less than vol volume unit");
-                        totalTime += CalculateTime(vol, flowrate,rateTimeUnits, 1/MILLI);
+                        inf_wrw_time = CalculateTime(vol, flowrate,rateTimeUnits, 1/MILLI);
 
                     }
                     // flow rate has a larger volume unit than vol's volume unit.
                     else
                     {
                         Console.WriteLine("flowrate volume units is greater than vol volume unit");
-                        totalTime += CalculateTime(vol, flowrate,rateTimeUnits, MILLI);
+                        inf_wrw_time = CalculateTime(vol, flowrate,rateTimeUnits, MILLI);
                     }
 
+                    pause_time = 4;
+                    Console.WriteLine(curExlRow.ToString() + " " + (pause_time + inf_wrw_time).ToString() + " " + method + " " + funcParamsList[1] + " at " + funcParamsList[0]);
+
+                    /*try{
+                    using (sw = new StreamWriter(sender))
+                    {
+                        sw.WriteLine(curExlRow.ToString() + " " + (pause_time + inf_wrw_time).ToString() + " " + method + " " + funcParamsList[1] + " at " + funcParamsList[0]);
+                        //sw.Dispose();
+                    }
+                    }
+                    catch (Exception e) { Console.WriteLine(e.Message); }
+                    //sw = new StreamWriter(sender);*/
+                    sw.WriteLine(curExlRow.ToString() + " " + (pause_time + inf_wrw_time).ToString() + " " + method + " " + funcParamsList[1] + " at " + funcParamsList[0]);
+                    
+
+                    totalTime += (pause_time + inf_wrw_time);
+                    
                     break;
 
                 case "MoveTo":
@@ -257,8 +317,8 @@ namespace TimeCalculation
                         Console.WriteLine(wellN);
                     }
 
-                    int nextColPos = int.Parse((regex_wellCol.Match(wellNums.First())).ToString()); // used for moving yslide
-                    int nextRowPos = regex_wellRow.Match(wellNums.First()).ToString()[0] - 'A'; // used for moving xslide
+                    nextColPos = int.Parse((regex_wellCol.Match(wellNums.First())).ToString()); // used for moving yslide
+                    nextRowPos = regex_wellRow.Match(wellNums.First()).ToString()[0] - 'A'; // used for moving xslide
 
             
                     string nextChemConc = (regex_wellCol.Match(currentChem)).ToString();
@@ -266,17 +326,24 @@ namespace TimeCalculation
 
                     // The only reason to avoid a rinse cycle, will be if the last chemical and the current chemical
                     // are the same and the current one is at a higher concentration than the last
-                    if (nextChemConc == "" || lastChemConc == "" || !(Double.Parse(nextChemConc) >
+                    /*if (nextChemConc == "" || lastChemConc == "" || !(Double.Parse(nextChemConc) >
                         Double.Parse(lastChemConc) && String.Equals(currentChem, lastChem, StringComparison.Ordinal)))
                     {
                         // if rinsing cycle is needed than we have to add the time it takes for the needle to traverse to
                         // well H1 where the water for rinsing is kept. A rinsing time is also added to the total time.
                         totalTime +=  WELL_DIS*(Math.Abs(curColPos-WELL_Y_REF)/Y_SPEED + 
                             Math.Abs(curRowPos - WELL_X_REF) / X_SPEED) + RINSE_TIME;
-                    }
+                    }*/
 
                     // time it takes for needle to traverse to next well location is added.
-                    totalTime += WELL_DIS * (Math.Abs(curRowPos - nextRowPos) / X_SPEED + Math.Abs(curColPos - nextColPos)/Y_SPEED);
+
+                    if (!in_well)
+                        z_move_time = Z_HOME_TIME;
+                    else
+                        z_move_time = Z_HOME_TIME + Z_DOWN_TIME;
+
+                    totalTime += WELL_DIS * (Math.Abs(curRowPos - nextRowPos) / X_SPEED + Math.Abs(curColPos - nextColPos)/Y_SPEED) + 
+                        z_move_time;
 
                     Console.WriteLine("WellColNum: {0}", nextColPos);
                     Console.WriteLine("WellRowNum: {0}", nextRowPos);
@@ -288,7 +355,8 @@ namespace TimeCalculation
                     // current row and column position is updated to next ones.
                     curRowPos = nextRowPos;
                     curColPos = nextColPos;
-                    lastChem = currentChem;
+                    in_well = true;
+                    //lastChem = currentChem;
                     break;
 
                     
@@ -306,14 +374,14 @@ namespace TimeCalculation
         public double CalculateTime (double volume, double rate, string rateTUnits, double convFactor)
         {
             double time = 0.0;
-
-            if (rateTUnits.Equals("s"))
+            Console.WriteLine("Time component of rate is: {0}", rateTUnits);
+            if (rateTUnits.Equals("s", StringComparison.OrdinalIgnoreCase))
             {
                 Console.WriteLine("time units: s");
                 time = convFactor * (volume / rate);
             }
-                
-            else if (rateTUnits.Equals("min"))
+
+            else if (rateTUnits.Equals("m", StringComparison.OrdinalIgnoreCase))
             {
                 time = convFactor * 60 * (volume / rate);
                 Console.WriteLine("time units: min");

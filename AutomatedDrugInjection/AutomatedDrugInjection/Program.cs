@@ -43,6 +43,7 @@ namespace AutomaticDrugInjection
 
 
         TextWriter tw;
+        private StreamWriter sw;
 
         static void Main(string[] args)
         {
@@ -53,7 +54,7 @@ namespace AutomaticDrugInjection
             string parentId = args[0];
 
             var sender = new AnonymousPipeClientStream(PipeDirection.Out, parentId);
-
+            program.sw = new StreamWriter(sender);
             string excelFile = args[1];//@"C:\Documents and Settings\Admin\Desktop\DrugInjection\AutomatedDrugInjection\automatedDrugTestTemplate.xlsm";
             ExcelPackage excelpack = new ExcelPackage(new System.IO.FileInfo(excelFile));
 
@@ -85,6 +86,7 @@ namespace AutomaticDrugInjection
             program.port = new ZaberBinaryPort("COM4");
             program.pump = new SerialPort("COM3", 1200, Parity.None, 8, StopBits.One);
 
+
             //Initialization Sequence for the Melles Griot Slide
             program.cf = new Config();
             program.ns = new NanoSteps();
@@ -96,6 +98,9 @@ namespace AutomaticDrugInjection
 
             // Ensure that the Home command is done when the zaber slides are at the max position away from the needle
             // Otherwise the microplate might clash with the needle if the z-axis is homed
+            program.sw.AutoFlush = true;
+            System.Threading.Thread.Sleep(5000);
+            program.sw.WriteLine("Start");
             program.ns.SingleHome(program.nanoStepNames.GetValue(0).ToString());
 
             program.ns.SingleMoveAbsoluteAndWait(program.nanoStepNames.GetValue(0).ToString(), ZSLIDE_OFFSET, 0);
@@ -130,6 +135,7 @@ namespace AutomaticDrugInjection
             // Goes row by row, reading and executing instructions sequentially
             while (row <= worksheetWithInstruction.Dimension.End.Row)
             {
+                program.sw.WriteLine(row.ToString());
                 // Populates funcParamsList with the current instructions and its parameters
                 program.ReadRow(worksheetWithInstruction, row, funcParamsList);
 
@@ -161,6 +167,7 @@ namespace AutomaticDrugInjection
                 {
                     program.InvokeMethod(methodName, funcParamsList);
                     program.tw.WriteLine("Running {0} from Row {1}: {2}", methodName, row, DateTime.Now);
+                    program.sw.WriteLine("{0}", row);
                 }
 
                 // Clear the funcParamsList for the next instruction
@@ -179,7 +186,6 @@ namespace AutomaticDrugInjection
             program.tw.WriteLine("Experiment Finished at {0}", DateTime.Now);
             program.tw.Close();
             program.port.Close();
-            Console.ReadLine();
 #endif
         }
 
@@ -286,7 +292,7 @@ namespace AutomaticDrugInjection
                 continue;
             Console.WriteLine("{0}", pump_response);
             pump_response = "";
-            System.Threading.Thread.Sleep(2000);
+            System.Threading.Thread.Sleep(1000);
 
 
             str = PUMP_ADDR + " ratew " + rate + " " + rate_units + "\r";
@@ -295,7 +301,7 @@ namespace AutomaticDrugInjection
                 continue;
             Console.WriteLine("{0}", pump_response);
             pump_response = "";
-            System.Threading.Thread.Sleep(2000);
+            System.Threading.Thread.Sleep(1000);
 
             str = PUMP_ADDR + " volw " + vol + " " + vol_units + "\r";
             pump.Write(str);
@@ -303,19 +309,19 @@ namespace AutomaticDrugInjection
                 continue;
             Console.WriteLine("{0}", pump_response);
             pump_response = "";
-            System.Threading.Thread.Sleep(2000);
+            System.Threading.Thread.Sleep(1000);
 
             str = PUMP_ADDR + " run\r";
             pump.Write(str);
             while (!resp_regex.Match(pump_response).Success)
                 continue;
             Console.WriteLine("{0}", pump_response);
-            System.Threading.Thread.Sleep(2000);
+            System.Threading.Thread.Sleep(1000);
 
             while (pump_response[pump_response.Length - 1] != ':')
             {
                 pump_response = "";
-                System.Threading.Thread.Sleep(10000);
+                System.Threading.Thread.Sleep(5000);
                 str = PUMP_ADDR + " run?\r";
                 pump.Write(str);
                 while (!resp_regex.Match(pump_response).Success)
@@ -357,7 +363,7 @@ namespace AutomaticDrugInjection
                 continue;
             Console.WriteLine("{0}", pump_response);
             pump_response = "";
-            System.Threading.Thread.Sleep(2000);
+            System.Threading.Thread.Sleep(1000);
 
 
             str = PUMP_ADDR + " ratei " + rate + " " + rate_units + "\r";
@@ -366,7 +372,7 @@ namespace AutomaticDrugInjection
                 continue;
             Console.WriteLine("{0}", pump_response);
             pump_response = "";
-            System.Threading.Thread.Sleep(2000);
+            System.Threading.Thread.Sleep(1000);
 
             str = PUMP_ADDR + " voli " + vol + " " + vol_units + "\r";
             pump.Write(str);
@@ -374,19 +380,19 @@ namespace AutomaticDrugInjection
                 continue;
             Console.WriteLine("{0}", pump_response);
             pump_response = "";
-            System.Threading.Thread.Sleep(2000);
+            System.Threading.Thread.Sleep(1000);
 
             str = PUMP_ADDR + " run\r";
             pump.Write(str);
             while (!resp_regex.Match(pump_response).Success)
                 continue;
             Console.WriteLine("{0}", pump_response);
-            System.Threading.Thread.Sleep(2000);
+            System.Threading.Thread.Sleep(1000);
 
             while (pump_response[pump_response.Length - 1] != ':')
             {
                 pump_response = "";
-                System.Threading.Thread.Sleep(10000);
+                System.Threading.Thread.Sleep(5000);
                 str = PUMP_ADDR + " run?\r";
                 pump.Write(str);
                 while (!resp_regex.Match(pump_response).Success)
