@@ -24,7 +24,7 @@ namespace TimeCalculation
         private const double Z_OFFSET = 17.0;
         // Time for Z-Slide
         private const double Z_HOME_TIME = Z_OFFSET;
-        private const double Z_DOWN_TIME = (17.0 / 9) * Z_OFFSET;
+        private const double Z_DOWN_TIME = (10 / 17.0) * Z_OFFSET;
 
         // well to well distance is 9 mm
         private const int WELL_DIS = 9;
@@ -33,8 +33,6 @@ namespace TimeCalculation
         private double totalTime = 0.0;
         private string lastChem = "";
         private int curExlRow = 0;
-        StreamWriter sw;
-        AnonymousPipeClientStream sender;
 
         // intialize a mulit value dictionary to store chemcial as key and their well locations as list of values
         private Dictionary<string, List<string>> dict = new Dictionary<string, List<string>>();
@@ -43,13 +41,14 @@ namespace TimeCalculation
         {
         
             Program program = new Program();
+            
             string parentSenderId;
 
             parentSenderId = args[0];
 
-            program.sender = new AnonymousPipeClientStream(PipeDirection.Out, parentSenderId);
-            program.sw = new StreamWriter(program.sender);
-            program.sw.AutoFlush = true;
+            var sender = new AnonymousPipeClientStream(PipeDirection.Out, parentSenderId);
+            StreamWriter sw = new StreamWriter(sender);
+            sw.AutoFlush = true;
 
             // get the excel file path from the GUI 
             string excelFile = args[1]; //@"C:\Documents and Settings\Admin\Desktop\automatedDrugTest.xlsx";
@@ -125,13 +124,11 @@ namespace TimeCalculation
             }
 
 
-            Console.WriteLine("using streamwriter");
 
-            program.sw.WriteLine("0 {0}", program.totalTime.ToString());
+
+            sw.WriteLine("{0}", program.totalTime.ToString());
 
             Console.WriteLine("{0}", program.totalTime);
-
-            //Console.ReadLine();
         }
         /// <summary>
         /// Reads the specified row from an excel worksheet
@@ -193,19 +190,6 @@ namespace TimeCalculation
                     // add the time the needle pauses at a well to the total time for running the experiment.
                     // This is stored in the FuncParamsList
                     pause_time = Int32.Parse(funcParamsList.First());
-                    if (pause_time > 15)
-                    {
-                        Console.WriteLine(curExlRow.ToString() + " " + pause_time.ToString() + " Pause for " + pause_time.ToString());
-                        //sw = new StreamWriter(sender);
-                        /*using (sw = new StreamWriter(sender))
-                        {
-                            sw.WriteLine(curExlRow.ToString() + " " + pause_time.ToString() + " Pause for " + pause_time.ToString());
-                            //sw.Dispose();
-                        }*/
-                        sw.WriteLine(curExlRow.ToString() + " " + pause_time.ToString() + " Pause for " + pause_time.ToString());
-
-                        
-                    }
                     totalTime += pause_time;
                     break;
 
@@ -282,20 +266,6 @@ namespace TimeCalculation
                     }
 
                     pause_time = 4;
-                    Console.WriteLine(curExlRow.ToString() + " " + (pause_time + inf_wrw_time).ToString() + " " + method + " " + funcParamsList[1] + " at " + funcParamsList[0]);
-
-                    /*try{
-                    using (sw = new StreamWriter(sender))
-                    {
-                        sw.WriteLine(curExlRow.ToString() + " " + (pause_time + inf_wrw_time).ToString() + " " + method + " " + funcParamsList[1] + " at " + funcParamsList[0]);
-                        //sw.Dispose();
-                    }
-                    }
-                    catch (Exception e) { Console.WriteLine(e.Message); }
-                    //sw = new StreamWriter(sender);*/
-                    sw.WriteLine(curExlRow.ToString() + " " + (pause_time + inf_wrw_time).ToString() + " " + method + " " + funcParamsList[1] + " at " + funcParamsList[0]);
-                    
-
                     totalTime += (pause_time + inf_wrw_time);
                     
                     break;
@@ -324,17 +294,6 @@ namespace TimeCalculation
                     string nextChemConc = (regex_wellCol.Match(currentChem)).ToString();
                     string lastChemConc = (regex_wellCol.Match(lastChem)).ToString();
 
-                    // The only reason to avoid a rinse cycle, will be if the last chemical and the current chemical
-                    // are the same and the current one is at a higher concentration than the last
-                    /*if (nextChemConc == "" || lastChemConc == "" || !(Double.Parse(nextChemConc) >
-                        Double.Parse(lastChemConc) && String.Equals(currentChem, lastChem, StringComparison.Ordinal)))
-                    {
-                        // if rinsing cycle is needed than we have to add the time it takes for the needle to traverse to
-                        // well H1 where the water for rinsing is kept. A rinsing time is also added to the total time.
-                        totalTime +=  WELL_DIS*(Math.Abs(curColPos-WELL_Y_REF)/Y_SPEED + 
-                            Math.Abs(curRowPos - WELL_X_REF) / X_SPEED) + RINSE_TIME;
-                    }*/
-
                     // time it takes for needle to traverse to next well location is added.
 
                     if (!in_well)
@@ -344,10 +303,6 @@ namespace TimeCalculation
 
                     totalTime += WELL_DIS * (Math.Abs(curRowPos - nextRowPos) / X_SPEED + Math.Abs(curColPos - nextColPos)/Y_SPEED) + 
                         z_move_time;
-
-                    Console.WriteLine("WellColNum: {0}", nextColPos);
-                    Console.WriteLine("WellRowNum: {0}", nextRowPos);
-                    Console.WriteLine("WellNo: {0}", wellNums.First());
 
                     // ASSUMING ALL CHEMICAL IS USED UP AFTER ONE OPERATION (MIGHT NEED TO CHANGE)
                     dict[currentChem].Remove(wellNums.First());

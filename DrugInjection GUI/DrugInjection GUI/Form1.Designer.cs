@@ -43,10 +43,6 @@
             this.label1 = new System.Windows.Forms.Label();
             this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
             this.lblProgress = new System.Windows.Forms.Label();
-            this.progressBar_mtd = new System.Windows.Forms.ProgressBar();
-            this.lblMethod = new System.Windows.Forms.Label();
-            this.lblInstruction = new System.Windows.Forms.Label();
-            this.backgroundWorker2 = new System.ComponentModel.BackgroundWorker();
             this.SuspendLayout();
             // 
             // btn_browse
@@ -91,7 +87,7 @@
             // btn_pause
             // 
             this.btn_pause.Enabled = false;
-            this.btn_pause.Location = new System.Drawing.Point(173, 297);
+            this.btn_pause.Location = new System.Drawing.Point(185, 203);
             this.btn_pause.Name = "btn_pause";
             this.btn_pause.Size = new System.Drawing.Size(87, 23);
             this.btn_pause.TabIndex = 4;
@@ -102,7 +98,7 @@
             // btn_stop
             // 
             this.btn_stop.Enabled = false;
-            this.btn_stop.Location = new System.Drawing.Point(37, 297);
+            this.btn_stop.Location = new System.Drawing.Point(37, 203);
             this.btn_stop.Name = "btn_stop";
             this.btn_stop.Size = new System.Drawing.Size(75, 23);
             this.btn_stop.TabIndex = 5;
@@ -113,7 +109,7 @@
             // btn_resume
             // 
             this.btn_resume.Enabled = false;
-            this.btn_resume.Location = new System.Drawing.Point(339, 297);
+            this.btn_resume.Location = new System.Drawing.Point(339, 203);
             this.btn_resume.Name = "btn_resume";
             this.btn_resume.Size = new System.Drawing.Size(75, 23);
             this.btn_resume.TabIndex = 7;
@@ -148,48 +144,12 @@
             this.lblProgress.TabIndex = 9;
             this.lblProgress.Text = "Progress: 0%";
             // 
-            // progressBar_mtd
-            // 
-            this.progressBar_mtd.Location = new System.Drawing.Point(37, 200);
-            this.progressBar_mtd.Name = "progressBar_mtd";
-            this.progressBar_mtd.Size = new System.Drawing.Size(377, 23);
-            this.progressBar_mtd.TabIndex = 10;
-            // 
-            // lblMethod
-            // 
-            this.lblMethod.AutoSize = true;
-            this.lblMethod.Location = new System.Drawing.Point(438, 210);
-            this.lblMethod.Name = "lblMethod";
-            this.lblMethod.Size = new System.Drawing.Size(68, 13);
-            this.lblMethod.TabIndex = 11;
-            this.lblMethod.Text = "Progress: 0%";
-            this.lblMethod.Click += new System.EventHandler(this.label2_Click);
-            // 
-            // lblInstruction
-            // 
-            this.lblInstruction.AutoSize = true;
-            this.lblInstruction.Location = new System.Drawing.Point(43, 236);
-            this.lblInstruction.Name = "lblInstruction";
-            this.lblInstruction.Size = new System.Drawing.Size(0, 13);
-            this.lblInstruction.TabIndex = 12;
-            // 
-            // backgroundWorker2
-            // 
-            this.backgroundWorker2.WorkerReportsProgress = true;
-            this.backgroundWorker2.WorkerSupportsCancellation = true;
-            this.backgroundWorker2.DoWork += new System.ComponentModel.DoWorkEventHandler(this.backgroundWorker2_DoWork);
-            this.backgroundWorker2.ProgressChanged += new System.ComponentModel.ProgressChangedEventHandler(this.backgroundWorker2_ProgressChanged);
-            this.backgroundWorker2.RunWorkerCompleted += new System.ComponentModel.RunWorkerCompletedEventHandler(this.backgroundWorker2_RunWorkerCompleted);
-            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.AliceBlue;
-            this.ClientSize = new System.Drawing.Size(528, 341);
-            this.Controls.Add(this.lblInstruction);
-            this.Controls.Add(this.lblMethod);
-            this.Controls.Add(this.progressBar_mtd);
+            this.ClientSize = new System.Drawing.Size(528, 256);
             this.Controls.Add(this.lblProgress);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.btn_resume);
@@ -222,10 +182,6 @@
         private System.Windows.Forms.Label label1;
         private System.ComponentModel.BackgroundWorker backgroundWorker1;
         private System.Windows.Forms.Label lblProgress;
-        private System.Windows.Forms.ProgressBar progressBar_mtd;
-        private System.Windows.Forms.Label lblMethod;
-        private System.Windows.Forms.Label lblInstruction;
-        private System.ComponentModel.BackgroundWorker backgroundWorker2;
     }
 }
 

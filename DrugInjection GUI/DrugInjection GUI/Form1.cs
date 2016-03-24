@@ -22,21 +22,20 @@ namespace DrugInjection_GUI
     {
         //intialize file name, communication thread and process for com
         private string fileName = "";
-        private Thread commun;
         private Process child;
         private string totalTime = "";
         private bool updateProgress = true;
-        
+        Stopwatch s = new Stopwatch();
+
         [BrowsableAttribute(false)]
         public static bool CheckForIllegalCrossThreadCalls { get; set; }
 
         public Form1()
         {
             InitializeComponent();
-            SetConsoleCtrlHandler(ParentCheck, true);
         }
-        
-       //browsw button
+
+        //browse button
         private void button1_Click(object sender, EventArgs e)
         {
             DialogResult result = openFileDialog1.ShowDialog();
@@ -45,9 +44,8 @@ namespace DrugInjection_GUI
                 //store the browswed file name and path 
                 txtBox_file.Text = openFileDialog1.FileName;
             }
-            Console.WriteLine(result);// <-- For debugging use.
-
         }
+
         //Run button
         private void btn_run_Click(object sender, EventArgs e)
         {
@@ -60,18 +58,12 @@ namespace DrugInjection_GUI
                 //if file name exists at the path specified, enter the if block
                 if (File.Exists(fileName))
                 {
-                    //create a new thread that runs the recData function, taking file name as input argument
-                    /*commun = new Thread(() => recData(fileName));
-                    
-                    //start the new thread
-                    commun.Start();*/
-
+                    // Background Worker will execute the Time Calculation code and Automation code
                     if (!backgroundWorker1.IsBusy)
                     {
                         backgroundWorker1.RunWorkerAsync();
                     }
-                   
-                    
+
                     // run button should be set to false once it has been pressed
                     btn_run.Enabled = false;
                     // the pause and stop button should now be set to true since the experiment is now run
@@ -82,7 +74,7 @@ namespace DrugInjection_GUI
                 }
                 else
                     // if filename does not exist at the specified path, show a pop-up window with error message
-                    MessageBox.Show("File Does Not Exist!!!", "Unknown File Exception", 
+                    MessageBox.Show("File Does Not Exist!!!", "Unknown File Exception",
                         MessageBoxButtons.OK, MessageBoxIcon.Warning);
             }
             else
@@ -92,103 +84,26 @@ namespace DrugInjection_GUI
 
         }
 
-        /// <summary>
-        /// The function runs in a new thread where is executes the main drug injection code
-        /// </summary>
-        /// <param name="filename"> excel file with the instructions that the user selected using the browse button</param>
-        private void recData (string filename)
-        {
-            // create a new receiver anonymous pipeline for communication between 
-            //this GUI and the main drug automation code
-            var receiver = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
-
-            // store a receiver ID for communication purposes
-            string receiverID = receiver.GetClientHandleAsString();
-
-            // store the path location of the main drug injection code
-            string clientpath = @"C:\Documents and Settings\Admin\Desktop\DrugInjection\AutomatedDrugInjection\AutomatedDrugInjection\bin\Release\AutomatedDrugInjection.exe";
-            string clientpath2 = @"C:\Documents and Settings\Admin\Desktop\DrugInjection\TimeCalculation\TimeCalculation\bin\Debug\TimeCalculation.exe";
-            // Creating the process info. 
-            var startInfo = new ProcessStartInfo(clientpath,receiverID +" "+ "\""+ fileName + "\""+ " " + "true" );
-
-            startInfo.UseShellExecute = false;
-    
-            // start the process providing all the information needed to run the main code
-            child = Process.Start(startInfo);
-            //closes the local copy of the anonymousPipeClientStream's object handle
-            receiver.DisposeLocalCopyOfClientHandle();
-
-            //while the process is running i.e the main drug injection code is executing.
-            while (!child.HasExited)
-            {
-                // streamReader object receives info from the main code and stores it in a string line
-                // message box is used to show the contents of line
-                using (StreamReader sr = new StreamReader(receiver))
-                {
-                    string line;
-                    
-                    try
-                    {
-                        if ((line = sr.ReadLine()) != null)
-                        {
-                            Console.WriteLine("{0}", line);
-                            MessageBox.Show(line);
-                        }
-                    }
-                    catch (Exception e) {  }
-                }
-            }
-            // The default controlling of button defined in another thread is not allowed because of thread safety reasons
-            Control.CheckForIllegalCrossThreadCalls = false;
-            btn_run.Enabled = true;
-            Control.CheckForIllegalCrossThreadCalls = true;
-
-
-        }
-
-
         //pause button
         private void btn_pause_Click(object sender, EventArgs e)
         {
+            s.Stop();
             btn_pause.Enabled = false;
             btn_resume.Enabled = true;
             updateProgress = false;
             SuspendProcess(child.Id);
         }
 
-        [DllImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        static extern bool GenerateConsoleCtrlEvent(uint dwCtrlEvent, uint dwProcessGroupId);
-
-        private delegate bool HandlerRoutine(CtrlTypes CtrlType);
-
-        [DllImport("Kernel32")]
-        private static extern bool SetConsoleCtrlHandler(HandlerRoutine Handler, bool Add);
-
-        // control messages
-        public enum CtrlTypes
-        {
-            CTRL_C_EVENT = 0,
-            CTRL_BREAK_EVENT,
-            CTRL_CLOSE_EVENT,
-            CTRL_LOGOFF_EVENT = 5,
-            CTRL_SHUTDOWN_EVENT
-        }
 
         //stop button
         private void btn_stop_Click(object sender, EventArgs e)
         {
+            // Terminate the automation code process
+            child.Kill();
             if (backgroundWorker1.IsBusy)
             {
                 backgroundWorker1.CancelAsync();
             }
-            
-            //child.Kill();
-            //child.Close();
-            
-            //GenerateConsoleCtrlEvent(Convert.ToUInt32(CtrlTypes.CTRL_C_EVENT) , Convert.ToUInt32(child.Id));
-            //child.WaitForExit();
-            //commun.Abort();
 
             btn_run.Enabled = true;
             btn_pause.Enabled = false;
@@ -196,19 +111,14 @@ namespace DrugInjection_GUI
             btn_resume.Enabled = false;
         }
 
-        private bool ParentCheck(CtrlTypes sig)
-        {
-            return true;
-        }
-
         //resume button
         private void btn_resume_Click(object sender, EventArgs e)
         {
+            s.Start();
             btn_resume.Enabled = false;
             btn_pause.Enabled = true;
             updateProgress = true;
             ResumeProcess(child.Id);
-            
         }
 
         // the code below was taken from http://stackoverflow.com/questions/71257/suspend-process-in-c-sharp
@@ -236,7 +146,7 @@ namespace DrugInjection_GUI
         [DllImport("kernel32.dll")]
         static extern int ResumeThread(IntPtr hThread);
         [DllImport("kernel32.dll")]
-        [return: MarshalAs(UnmanagedType.Bool) ]
+        [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool CloseHandle(IntPtr hObject);
 
 
@@ -262,8 +172,8 @@ namespace DrugInjection_GUI
                 //FormClosedEventHandler()
                 SuspendThread(pOpenThread);
                 CloseHandle(pOpenThread);
-                
-          
+
+
             }
         }
         /// <summary>
@@ -298,10 +208,9 @@ namespace DrugInjection_GUI
 
         private void backgroundWorker1_DoWork(object sender, DoWorkEventArgs e)
         {
-            Stopwatch s = new Stopwatch();
-            Stopwatch s2 = new Stopwatch();
-            //TimeSpan s1;
-            Dictionary<int, string> funcTimes = new Dictionary<int,string>();
+            //Stopwatch s = new Stopwatch(); // Manages total experiment time
+
+            Dictionary<int, string> funcTimes = new Dictionary<int, string>();
 
             // create a new receiver anonymous pipeline for communication between 
             //this GUI and the main drug automation code
@@ -322,38 +231,30 @@ namespace DrugInjection_GUI
             child = Process.Start(startInfo);
             //closes the local copy of the anonymousPipeClientStream's object handle
             receiver_timecalc.DisposeLocalCopyOfClientHandle();
+
+            // Object to read incoming data from pipe
             StreamReader sr1 = new StreamReader(receiver_timecalc);
+
             //while the process is running i.e the main drug injection code is executing.
             while (!child.HasExited)
             {
-                // streamReader object receives info from the main code and stores it in a string line
-                // message box is used to show the contents of line
-                //using (StreamReader sr = new StreamReader(receiver_timecalc))
-                //{
-                    string line;
-                    string[] vals;
-                    int row;
-                    try
-                    {
-                        if ((line = sr1.ReadLine()) != null)
-                        {
-                            vals = line.Split(new[] {' '}, 2);
-                            row = Int32.Parse(vals[0]);
-                            if (!funcTimes.ContainsKey(row) && row != 0)
-                                funcTimes.Add(Int32.Parse(vals[0]), vals[1]);
-                            else
-                                totalTime = Double.Parse(vals[1]).ToString();
 
-                            Console.WriteLine("{0}", line);
-                            //MessageBox.Show(totalTime);
-                        }
+                string line;
+
+                try
+                {
+                    if ((line = sr1.ReadLine()) != null)
+                    {
+                        totalTime = line;
+                        Console.WriteLine("{0}", line);
+                        MessageBox.Show(totalTime);
                     }
-                    catch (Exception exc) { }
-                //}
+                }
+                catch (Exception exception) { }
+
             }
 
-            // KILL THE PROCESS IF IT DOES NOT KILL ITSELF
-
+            // create a pipe for communication with the automation code
             var receiver = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
 
             // store a receiver ID for communication purposes
@@ -369,87 +270,49 @@ namespace DrugInjection_GUI
             //closes the local copy of the anonymousPipeClientStream's object handle
             receiver.DisposeLocalCopyOfClientHandle();
 
+
+            int progress = 0; // Stores percentage progress for experiment
+            //StreamReader sr = new StreamReader(receiver);
+
             //while the process is running i.e the main drug injection code is executing.
-            int progress = 0;
-            int progress_method = 0;
-            double func_time = 0;
-            StreamReader sr = new StreamReader(receiver);
             while (!child.HasExited)
             {
                 // streamReader object receives info from the main code and stores it in a string line
                 // message box is used to show the contents of line
 
-                    string status;
-                    int row;
-                    string[] vals;
-                    int first_char;
+                string status;
+                using (StreamReader sr = new StreamReader(receiver))
+                {
                     try
                     {
-                        
-                        MessageBox.Show("Trying to read at " + s.Elapsed.TotalSeconds.ToString());
-                        //first_char = sr.BaseStream.ReadByte();
-                        first_char = sr.Read();
-                        MessageBox.Show(first_char.ToString());
-                        //sr.BaseStream.
-                        if (first_char != 0)
+                        // Execution hangs at readline until something is received
+                        if ((status = sr.ReadLine()) != null)
                         {
-                            if ((status = sr.ReadLine()) != null)
+                            if (status.Equals("Start", StringComparison.OrdinalIgnoreCase))
                             {
-                                status = (Convert.ToChar(first_char)).ToString() + status;
-                                MessageBox.Show("Got status = " + status + " at " + s.Elapsed.TotalSeconds.ToString());
-                                if (status.Equals("Start", StringComparison.OrdinalIgnoreCase))
-                                {
-                                    // start the timer now
-                                    MessageBox.Show("Started at " + s.Elapsed.TotalSeconds.ToString());
-                                    s.Start();
-                                }
-                                else
-                                {
-                                    row = Int32.Parse(status);
-
-                                    if (funcTimes.ContainsKey(row))
-                                    {
-                                        MessageBox.Show("Got a row in list at " + s.Elapsed.TotalSeconds.ToString());
-                                        progress_method = 0;
-                                        s2.Restart();
-                                        vals = funcTimes[row].Split(new[] { ' ' }, 2);
-                                        func_time = Double.Parse(vals[0]);
-                                        lblInstruction.Text = vals[1];
-                                        MessageBox.Show("Updated the label at " + s.Elapsed.TotalSeconds.ToString());
-                                    }
-                                }
+                                // start the timer now
+                                s.Start();
                             }
+
                         }
                     }
-                    catch (Exception exc) { }
-                    MessageBox.Show("Got out of the try catch at " + s.Elapsed.TotalSeconds.ToString());
+                    catch (Exception exception) { }
+                }
 
-                    
-                    if (updateProgress)
-                    {  
-                        progress = (int)((s.Elapsed.TotalSeconds / Double.Parse(totalTime)) * 100);
-                        MessageBox.Show("Updated Experiment Progress at " + s.Elapsed.TotalSeconds.ToString());
-                    }
-                    backgroundWorker1.ReportProgress(progress, "Total");
+                if (updateProgress)
+                    progress = (int)((s.Elapsed.TotalSeconds / Double.Parse(totalTime)) * 100);
+                backgroundWorker1.ReportProgress(progress);
 
-                    if (s2.Elapsed.TotalSeconds > func_time / 100)
-                    {
-                        if (updateProgress)
-                            progress_method++;
-                        backgroundWorker1.ReportProgress(progress_method, "Function");
-                        MessageBox.Show("Updated Function Progress at " + s.Elapsed.TotalSeconds.ToString());
-                    }
+                if (backgroundWorker1.CancellationPending)
+                {
+                    e.Cancel = true;
+                    backgroundWorker1.ReportProgress(0, "Total");
+                    return;
+                }
 
-                    if (backgroundWorker1.CancellationPending)
-                    {
-                        MessageBox.Show("Cancelling background worker at " + s.Elapsed.TotalSeconds.ToString());
-                        e.Cancel = true;
-                        backgroundWorker1.ReportProgress(0, "Total");
-                        return;
-                    }
-                
             }
 
+            backgroundWorker1.ReportProgress(100);
             s.Stop();
 
             // The default controlling of button defined in another thread is not allowed because of thread safety reasons
@@ -459,65 +322,31 @@ namespace DrugInjection_GUI
 
         }
 
+        /// <summary>
+        /// Updates the progress percentage for both progress bars
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void backgroundWorker1_ProgressChanged(object sender, ProgressChangedEventArgs e)
         {
             int progress;
-            switch (e.UserState.ToString())
+
+            if (e.ProgressPercentage < 100)
             {
-                case "Total":
-                    if (e.ProgressPercentage < 100)
-                    {
-                        progressBar_tlt.Value = e.ProgressPercentage;
-                        progress = e.ProgressPercentage;
-                    }
-                    else
-                    {
-                        progressBar_tlt.Value = 100;
-                        progress = 100;
-                    }
-
-                    lblProgress.Text = "Progress: " + progress.ToString() + "%";
-                    break;
-
-                case "Function":
-                    if (e.ProgressPercentage < 100)
-                    {
-                        progressBar_mtd.Value = e.ProgressPercentage;
-                        progress = e.ProgressPercentage;
-                    }
-                    else
-                    {
-                        progressBar_mtd.Value = 100;
-                        progress = 100;
-                    }
-
-                    lblMethod.Text = "Progress: " + e.ProgressPercentage.ToString() + "%";
-                    break;
+                progressBar_tlt.Value = e.ProgressPercentage;
+                progress = e.ProgressPercentage;
             }
-            
-        }
+            else
+            {
+                 progressBar_tlt.Value = 100;
+                 progress = 100;
+            }
+
+            lblProgress.Text = "Progress: " + progress.ToString() + "%";
+         }
+
 
         private void backgroundWorker1_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
-        {
-
-        }
-
-        private void label2_Click(object sender, EventArgs e)
-        {
-
-        }
-
-        private void backgroundWorker2_DoWork(object sender, DoWorkEventArgs e)
-        {
-
-        }
-
-        private void backgroundWorker2_ProgressChanged(object sender, ProgressChangedEventArgs e)
-        {
-
-        }
-
-        private void backgroundWorker2_RunWorkerCompleted(object sender, RunWorkerCompletedEventArgs e)
         {
 
         }

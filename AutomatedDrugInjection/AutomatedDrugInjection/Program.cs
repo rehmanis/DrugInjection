@@ -16,46 +16,47 @@ namespace AutomaticDrugInjection
 {
     class Program
     {
+        // CONSTANTS DEFINED FOR LINEAR STAGES AND PUMP
         private const int MILLISEC = 1000;
-        private const int WELLTOWELLSPAC_X = 4464; //(int)(8.8e-3 / 1.984375e-6);
-        private const int WELLTOWELLSPAC_Y = 18027;//(int)(9e-3 / 0.49609375e-6);
-        private const int XPOS_WELL_1H = 0; //(int)(140e-3 / 1.984375e-6);
+        private const int WELLTOWELLSPAC_X = 4464;
+        private const int WELLTOWELLSPAC_Y = 18027;
+        private const int XPOS_WELL_1H = 0; 
         private const int MAX_X = 227527;
         private const int MAX_Y = 305381;
-        private const int YPOS_WELL_1H = 0; //(int)(140e-3 / 0.49609375e-6);
+        private const int YPOS_WELL_1H = 0; 
         private const string PUMP_ADDR = "2";
         private const double ZSLIDE_OFFSET = 17.0;
 
-        private string lastChem = "";
+        // OBJECTS REQUIRED FOR DATA STORAGE AND STAGE/PUMP AUTOMATION
         private Dictionary<string, List<string>> dict = new Dictionary<string, List<string>>();
         private ZaberBinaryPort port;
         private ZaberBinaryDevice slideX;
         private ZaberBinaryDevice slideY;
         private SerialPort pump;
         private string pump_response = "";
-        //private Program programObj = new Program();
-
         //Melles Griot Variables
         private Config cf;
         private NanoSteps ns;
         private System.Array nanoStepNames;
 
 
+        // Object for writing experiment log to file
+        private TextWriter tw;
 
-        TextWriter tw;
-        private StreamWriter sw;
+        // Object for writing to pipe connected to GUI
+        //private StreamWriter sw;
 
         static void Main(string[] args)
         {
             Program program = new Program();
 
-            //SetConsoleCtrlHandler(new HandlerRoutine(program.ConsoleCtrlCheck), true);
-            //AppDomain.CurrentDomain.ProcessExit += new EventHandler(program.ConsoleCtrlCheck);
             string parentId = args[0];
 
+            // create connection to pipe using id of parent process
             var sender = new AnonymousPipeClientStream(PipeDirection.Out, parentId);
-            program.sw = new StreamWriter(sender);
-            string excelFile = args[1];//@"C:\Documents and Settings\Admin\Desktop\DrugInjection\AutomatedDrugInjection\automatedDrugTestTemplate.xlsm";
+
+            // open excel file using the file path sent in as an argument to main()
+            string excelFile = args[1];
             ExcelPackage excelpack = new ExcelPackage(new System.IO.FileInfo(excelFile));
 
             ExcelWorksheet worksheetWithInstruction = excelpack.Workbook.Worksheets["Sheet1"];
@@ -63,7 +64,6 @@ namespace AutomaticDrugInjection
 
 #if !CALIBRATE
             string log_file = Path.GetDirectoryName(excelFile) + @"\" + Path.GetFileNameWithoutExtension(excelFile) + "_log.txt";
-            Console.WriteLine("{0}", log_file);
             program.tw = new StreamWriter(log_file, false);
             program.tw.WriteLine("Experiment Started at {0}", DateTime.Now);
 #endif
@@ -98,9 +98,12 @@ namespace AutomaticDrugInjection
 
             // Ensure that the Home command is done when the zaber slides are at the max position away from the needle
             // Otherwise the microplate might clash with the needle if the z-axis is homed
-            program.sw.AutoFlush = true;
-            System.Threading.Thread.Sleep(5000);
-            program.sw.WriteLine("Start");
+
+            using (StreamWriter sw = new StreamWriter(sender))
+            {
+                sw.AutoFlush = true;
+                sw.WriteLine("Start");
+            }
             program.ns.SingleHome(program.nanoStepNames.GetValue(0).ToString());
 
             program.ns.SingleMoveAbsoluteAndWait(program.nanoStepNames.GetValue(0).ToString(), ZSLIDE_OFFSET, 0);
@@ -135,7 +138,6 @@ namespace AutomaticDrugInjection
             // Goes row by row, reading and executing instructions sequentially
             while (row <= worksheetWithInstruction.Dimension.End.Row)
             {
-                program.sw.WriteLine(row.ToString());
                 // Populates funcParamsList with the current instructions and its parameters
                 program.ReadRow(worksheetWithInstruction, row, funcParamsList);
 
@@ -167,7 +169,6 @@ namespace AutomaticDrugInjection
                 {
                     program.InvokeMethod(methodName, funcParamsList);
                     program.tw.WriteLine("Running {0} from Row {1}: {2}", methodName, row, DateTime.Now);
-                    program.sw.WriteLine("{0}", row);
                 }
 
                 // Clear the funcParamsList for the next instruction
@@ -190,9 +191,9 @@ namespace AutomaticDrugInjection
         }
 
         /// <summary>
-        /// Is meant to handle data coming in from the serial port for the Melles Griot linear stage
+        /// Handles incoming data from KDS230 Syringe pump
         /// </summary>
-        /// <param name="sender">Is the SerialPort object associated with the SerialPort</param>
+        /// <param name="sender">SerialPort object for Syringe Pump</param>
         /// <param name="e">Built-in parameter</param>
         public void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
         {
@@ -270,8 +271,8 @@ namespace AutomaticDrugInjection
             Console.WriteLine("Infuse");
 
             string str;
-            //string rate_units = @"ulm";
-            //string vol_units = @"ul";
+
+            // regex to parse the reply data from the pump
             Regex resp_regex = new Regex(@"\r\n" + PUMP_ADDR + @"\S{1,2}");
 
             // example matching patterns: 1.52 ml/m, 1 ul/s, 2.5 ml, 3 ul
@@ -344,8 +345,8 @@ namespace AutomaticDrugInjection
             Console.WriteLine("Infuse");
 
             string str;
-            //string rate_units = @"ulm";
-            //string vol_units = @"ul";
+
+            // regex to parse the reply data from the pump
             Regex resp_regex = new Regex(@"\r\n" + PUMP_ADDR + @"\S{1,2}");
 
             // example matching patterns: 1.52 ml/m, 1 ul/s
@@ -425,19 +426,6 @@ namespace AutomaticDrugInjection
             List<string> wellNums = dict[chemical];
             int nextCol = Int32.Parse((regex_wellCol.Match(wellNums.First())).ToString());
             int nextRow = regex_wellRow.Match(wellNums.First()).ToString()[0] - 'A';
-            //int nextCol = (int)char.GetNumericValue(((wellNums.First())[0]));// yslide 
-            //int nextRow = ((wellNums.First())[1]) - 'A';// xslide
-
-            // Regular expression to define the syntax for concentration (e.g. 3.5M)
-            // If it is 3.5 M, this will extract 3.5 (MIGHT NEED TO RECONSIDER THIS REGULAR EXPRESSION)
-            var regex = new Regex(@"\d+(.\d+)?");
-            string nextChemConc = (regex.Match(chemical)).ToString();
-            string lastChemConc = (regex.Match(lastChem)).ToString();
-
-            // The only reason to avoid a rinse cycle, will be if the last chemical and the current chemical
-            // are the same and the current one is at a higher concentration than the last
-            //if (nextChemConc == "" || lastChemConc == "" || !(Double.Parse(nextChemConc) > Double.Parse(lastChemConc) && String.Equals(chemical, lastChem, StringComparison.Ordinal)))
-            //    Rinse();
 
             // Specifies the absolute positions of the well to move to
             int nextPosX = (7 - nextRow) * WELLTOWELLSPAC_X;
@@ -458,8 +446,6 @@ namespace AutomaticDrugInjection
 
             // ASSUMING ALL CHEMICAL IS USED UP AFTER ONE OPERATION (MIGHT NEED TO CHANGE)
             dict[chemical].Remove(wellNums.First());
-            // update last chemical
-            lastChem = chemical;
 
         }
         /// <summary>
@@ -473,8 +459,9 @@ namespace AutomaticDrugInjection
         }
 
         /// <summary>
-        /// Completes a rinse cycle between moving from one chemical to another
+        /// Executes a 3 step Rinse cycle going to wells 1H, 2H and 3H
         /// </summary>
+        /// <param name="time">The time to pause for in each well</param>
         public void Rinse(string time)
         {
             double zpos;
@@ -497,40 +484,6 @@ namespace AutomaticDrugInjection
             }
 
             ns.SingleMoveAbsoluteAndWait(nanoStepNames.GetValue(0).ToString(), ZSLIDE_OFFSET, 0);
-        }
-
-        [DllImport("Kernel32")]
-        public static extern bool SetConsoleCtrlHandler(HandlerRoutine Handler, bool Add);
-
-        //delegate type to be used of the handler routine
-        public delegate bool HandlerRoutine(CtrlTypes CtrlType);
-
-        // control messages
-        public enum CtrlTypes
-        {
-            CTRL_C_EVENT = 0,
-            CTRL_BREAK_EVENT,
-            CTRL_CLOSE_EVENT,
-            CTRL_LOGOFF_EVENT = 5,
-            CTRL_SHUTDOWN_EVENT
-        }
-
-        public bool ConsoleCtrlCheck(CtrlTypes sig)
-        {
-            Console.WriteLine("In ConsoleCtrlCheck");
-            tw.Close();
-            slideY.Stop();
-            slideY.PollUntilIdle();
-            slideX.Stop();
-            slideX.PollUntilIdle();
-            pump.Write(PUMP_ADDR + " stop\r");
-            ns.SingleMoveAbsoluteAndWait(nanoStepNames.GetValue(0).ToString(), ZSLIDE_OFFSET, 0);
-            slideY.Home();
-            slideY.PollUntilIdle();
-            slideX.MoveAbsolute(MAX_X);
-            slideX.PollUntilIdle();
-
-            return true;
         }
 
     }
