@@ -39,7 +39,6 @@ namespace AutomaticDrugInjection
         private NanoSteps ns;
         private System.Array nanoStepNames;
 
-
         // Object for writing experiment log to file
         private TextWriter tw;
 
@@ -51,7 +50,6 @@ namespace AutomaticDrugInjection
             Program program = new Program();
 
             string parentId = args[0];
-
             // create connection to pipe using id of parent process
             var sender = new AnonymousPipeClientStream(PipeDirection.Out, parentId);
 
@@ -189,6 +187,7 @@ namespace AutomaticDrugInjection
             program.port.Close();
 #endif
         }
+
 
         /// <summary>
         /// Handles incoming data from KDS230 Syringe pump
