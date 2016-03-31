@@ -15,6 +15,7 @@ using System.Runtime.InteropServices;
 using MG17_Drivers;
 using Zaber.Serial.Core;
 using System.IO.Ports;
+using DrugInjection_GUI;
 
 namespace DrugInjection_GUI
 {
@@ -306,7 +307,7 @@ namespace DrugInjection_GUI
                 if (backgroundWorker1.CancellationPending)
                 {
                     e.Cancel = true;
-                    backgroundWorker1.ReportProgress(0, "Total");
+                    backgroundWorker1.ReportProgress(0);
                     return;
                 }
 
