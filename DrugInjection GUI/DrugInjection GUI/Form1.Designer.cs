@@ -43,6 +43,8 @@
             this.label1 = new System.Windows.Forms.Label();
             this.backgroundWorker1 = new System.ComponentModel.BackgroundWorker();
             this.lblProgress = new System.Windows.Forms.Label();
+            this.btn_calibrate = new System.Windows.Forms.Button();
+            this.btn_home = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // btn_browse
@@ -144,12 +146,34 @@
             this.lblProgress.TabIndex = 9;
             this.lblProgress.Text = "Progress: 0%";
             // 
+            // btn_calibrate
+            // 
+            this.btn_calibrate.Location = new System.Drawing.Point(185, 83);
+            this.btn_calibrate.Name = "btn_calibrate";
+            this.btn_calibrate.Size = new System.Drawing.Size(75, 23);
+            this.btn_calibrate.TabIndex = 10;
+            this.btn_calibrate.Text = "Calibrate";
+            this.btn_calibrate.UseVisualStyleBackColor = true;
+            this.btn_calibrate.Click += new System.EventHandler(this.btn_calibrate_Click);
+            // 
+            // btn_home
+            // 
+            this.btn_home.Location = new System.Drawing.Point(339, 83);
+            this.btn_home.Name = "btn_home";
+            this.btn_home.Size = new System.Drawing.Size(75, 23);
+            this.btn_home.TabIndex = 11;
+            this.btn_home.Text = "Home";
+            this.btn_home.UseVisualStyleBackColor = true;
+            this.btn_home.Click += new System.EventHandler(this.btn_home_Click);
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.AliceBlue;
-            this.ClientSize = new System.Drawing.Size(528, 256);
+            this.ClientSize = new System.Drawing.Size(528, 250);
+            this.Controls.Add(this.btn_home);
+            this.Controls.Add(this.btn_calibrate);
             this.Controls.Add(this.lblProgress);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.btn_resume);
@@ -182,6 +206,8 @@
         private System.Windows.Forms.Label label1;
         private System.ComponentModel.BackgroundWorker backgroundWorker1;
         private System.Windows.Forms.Label lblProgress;
+        private System.Windows.Forms.Button btn_calibrate;
+        private System.Windows.Forms.Button btn_home;
     }
 }
 

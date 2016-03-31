@@ -444,7 +444,7 @@ namespace AutomaticDrugInjection
             Console.WriteLine("WellNo: {0}", wellNums.First());
 
             // ASSUMING ALL CHEMICAL IS USED UP AFTER ONE OPERATION (MIGHT NEED TO CHANGE)
-            dict[chemical].Remove(wellNums.First());
+            //dict[chemical].Remove(wellNums.First());
 
         }
         /// <summary>

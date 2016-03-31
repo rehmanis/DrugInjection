@@ -71,7 +71,8 @@ namespace DrugInjection_GUI
                     // and the user has the option to stop or pause the experiment
                     btn_pause.Enabled = true;
                     btn_stop.Enabled = true;
-
+                    btn_calibrate.Enabled = false;
+                    btn_home.Enabled = false;
                 }
                 else
                     // if filename does not exist at the specified path, show a pop-up window with error message
@@ -110,6 +111,8 @@ namespace DrugInjection_GUI
             btn_pause.Enabled = false;
             btn_stop.Enabled = false;
             btn_resume.Enabled = false;
+            btn_calibrate.Enabled = true;
+            btn_home.Enabled = true;
         }
 
         //resume button
@@ -319,6 +322,8 @@ namespace DrugInjection_GUI
             // The default controlling of button defined in another thread is not allowed because of thread safety reasons
             Control.CheckForIllegalCrossThreadCalls = false;
             btn_run.Enabled = true;
+            btn_calibrate.Enabled = true;
+            btn_home.Enabled = true;
             Control.CheckForIllegalCrossThreadCalls = true;
 
         }
@@ -351,6 +356,53 @@ namespace DrugInjection_GUI
         {
 
         }
+
+        private void btn_calibrate_Click(object sender, EventArgs e)
+        {
+            DialogResult result = MessageBox.Show("Please ensure that the z-slide is above the microplate and the syringe pump is off, before pressing OK ", "Caution",
+                        MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
+
+            if (result == DialogResult.OK)
+            {
+                
+                ZaberBinaryPort port = new ZaberBinaryPort("COM4");
+                port.Open();
+                ZaberBinaryDevice slideX, slideY;
+                slideX = new ZaberBinaryDevice(port, 1);
+                slideY = new ZaberBinaryDevice(port, 2);
+                slideY.Home();
+                slideY.PollUntilIdle();
+                slideX.MoveAbsolute(0);
+                slideX.PollUntilIdle();
+
+                port.Close();
+            }
+        }
+
+        private void btn_home_Click(object sender, EventArgs e)
+        {
+            DialogResult result = MessageBox.Show("Please ensure that the z-slide is above the microplate and the syringe pump is off, before pressing OK ", "Caution",
+                        MessageBoxButtons.OKCancel, MessageBoxIcon.Warning);
+
+            if (result == DialogResult.OK)
+            {
+                const int MAX_X = 227527;
+
+                ZaberBinaryPort port = new ZaberBinaryPort("COM4");
+                port.Open();
+                ZaberBinaryDevice slideX, slideY;
+                slideX = new ZaberBinaryDevice(port, 1);
+                slideY = new ZaberBinaryDevice(port, 2);
+                slideY.Home();
+                slideY.PollUntilIdle();
+                slideX.MoveAbsolute(MAX_X);
+                slideX.PollUntilIdle();
+
+                port.Close();
+            }
+        }
+
+        
 
     }
 }

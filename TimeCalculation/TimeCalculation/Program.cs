@@ -305,7 +305,7 @@ namespace TimeCalculation
                         z_move_time;
 
                     // ASSUMING ALL CHEMICAL IS USED UP AFTER ONE OPERATION (MIGHT NEED TO CHANGE)
-                    dict[currentChem].Remove(wellNums.First());
+                    //dict[currentChem].Remove(wellNums.First());
 
                     // current row and column position is updated to next ones.
                     curRowPos = nextRowPos;
