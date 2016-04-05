@@ -28,7 +28,6 @@ namespace AutomaticDrugInjection
         private const double ZSLIDE_OFFSET = 17.0;
 
         // OBJECTS REQUIRED FOR DATA STORAGE AND STAGE/PUMP AUTOMATION
-        private Dictionary<string, List<string>> dict = new Dictionary<string, List<string>>();
         private ZaberBinaryPort port;
         private ZaberBinaryDevice slideX;
         private ZaberBinaryDevice slideY;
@@ -39,11 +38,6 @@ namespace AutomaticDrugInjection
         private NanoSteps ns;
         private System.Array nanoStepNames;
 
-        // Object for writing experiment log to file
-        private TextWriter tw;
-
-        // Object for writing to pipe connected to GUI
-        //private StreamWriter sw;
 
         static void Main(string[] args)
         {
@@ -58,12 +52,15 @@ namespace AutomaticDrugInjection
             ExcelPackage excelpack = new ExcelPackage(new System.IO.FileInfo(excelFile));
 
             ExcelWorksheet worksheetWithInstruction = excelpack.Workbook.Worksheets["Sheet1"];
-            ExcelWorksheet worksheetWithChemToWell = excelpack.Workbook.Worksheets["Sheet2"];
 
 #if !CALIBRATE
             string log_file = Path.GetDirectoryName(excelFile) + @"\" + Path.GetFileNameWithoutExtension(excelFile) + "_log.txt";
-            program.tw = new StreamWriter(log_file, false);
-            program.tw.WriteLine("Experiment Started at {0}", DateTime.Now);
+            using (FileStream f = new FileStream(log_file, FileMode.Append, FileAccess.Write))
+            using (StreamWriter s = new StreamWriter(f))
+            {
+                s.WriteLine("--------------------------------------------------------");
+                s.WriteLine("Experiment Started at {0}", DateTime.Now);
+            }
 #endif
 
             // Holds the current function (the row being executed in excel) to be executed and its parameters
@@ -124,13 +121,6 @@ namespace AutomaticDrugInjection
 
 #if !CALIBRATE
 
-            // Reads all the chemical names and their well locations and stores them in a dictionary (dict).
-            for (row = 1; row <= worksheetWithChemToWell.Dimension.End.Row; row++)
-            {
-                program.ReadRow(worksheetWithChemToWell, row, program.dict);
-            }
-
-            // Row to start reading instructions from
             row = 9;
 
             // Goes row by row, reading and executing instructions sequentially
@@ -166,7 +156,9 @@ namespace AutomaticDrugInjection
                 else
                 {
                     program.InvokeMethod(methodName, funcParamsList);
-                    program.tw.WriteLine("Running {0} from Row {1}: {2}", methodName, row, DateTime.Now);
+                    using (FileStream f = new FileStream(log_file, FileMode.Append, FileAccess.Write))
+                        using (StreamWriter s = new StreamWriter(f))
+                            s.WriteLine("Running {0} from Row {1}: {2}", methodName, row, DateTime.Now);
                 }
 
                 // Clear the funcParamsList for the next instruction
@@ -182,8 +174,10 @@ namespace AutomaticDrugInjection
             program.slideX.PollUntilIdle();
             program.slideY.PollUntilIdle();
 
-            program.tw.WriteLine("Experiment Finished at {0}", DateTime.Now);
-            program.tw.Close();
+            //program.tw.WriteLine("Experiment Finished at {0}", DateTime.Now);
+            using (FileStream f = new FileStream(log_file, FileMode.Append, FileAccess.Write))
+                using (StreamWriter s = new StreamWriter(f))
+                    s.WriteLine("Experiment Finished at {0}", DateTime.Now);
             program.port.Close();
 #endif
         }
@@ -222,29 +216,6 @@ namespace AutomaticDrugInjection
 
             }
 
-            // If we are reading chemical & their well locations, we store in dict 
-            // (which is of type Dictionary<string, List<string>>)
-            if (datatype is Dictionary<string, List<string>>)
-            {
-                if (ws.Cells[row, 1].Value != null)
-                {
-                    // Check if dictionary already contains the chemical (key) name. If not, create a new key in the dictionary
-                    if (!dict.ContainsKey(ws.Cells[row, 1].Value.ToString().Trim()))
-                        dict.Add(ws.Cells[row, 1].Value.ToString().Trim(), new List<string>());
-
-                    // Read all the well locations (is in the 2nd column of the associated row) and split them into a string list
-                    string parmValues = ws.Cells[row, 2].Value.ToString();
-                    string[] parmVal = parmValues.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-
-                    // Store each of the well locations as a separate value for the corresponding key
-                    foreach (var value in parmVal)
-                    {
-                        ((Dictionary<string, List<string>>)datatype)[ws.Cells[row, 1].Value.ToString().Trim()].Add(value);
-                    }
-
-                }
-
-            }
         }
 
         /// <summary>
@@ -420,11 +391,13 @@ namespace AutomaticDrugInjection
 
             Console.WriteLine("move");
             // Initialize a list to store all the well locations specified in the dictionary
-            var regex_wellCol = new Regex(@"\d+");
-            var regex_wellRow = new Regex(@"(?i)[A-H]{1}");
-            List<string> wellNums = dict[chemical];
-            int nextCol = Int32.Parse((regex_wellCol.Match(wellNums.First())).ToString());
-            int nextRow = regex_wellRow.Match(wellNums.First()).ToString()[0] - 'A';
+            var regex_wellCol = new Regex(@"\d{1,2}");
+            var regex_wellRow = new Regex(@"[A-Ha-h]{1}");
+            var regex_row_col = new Regex(@"\(\s*([A-Ha-h0-9]+)\s*\)");
+            
+            string well = regex_row_col.Match(chemical).Groups[1].ToString();
+            int nextCol = Int32.Parse(regex_wellCol.Match(well).ToString());
+            int nextRow = regex_wellRow.Match(well).ToString()[0] - 'A';
 
             // Specifies the absolute positions of the well to move to
             int nextPosX = (7 - nextRow) * WELLTOWELLSPAC_X;
@@ -441,11 +414,7 @@ namespace AutomaticDrugInjection
 
             Console.WriteLine("WellColNum: {0}", nextCol);
             Console.WriteLine("WellRowNum: {0}", nextRow);
-            Console.WriteLine("WellNo: {0}", wellNums.First());
-
-            // ASSUMING ALL CHEMICAL IS USED UP AFTER ONE OPERATION (MIGHT NEED TO CHANGE)
-            //dict[chemical].Remove(wellNums.First());
-
+            
         }
         /// <summary>
         /// The method pauses the program before executing the next instruction

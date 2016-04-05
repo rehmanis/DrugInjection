@@ -90,6 +90,10 @@ namespace DrugInjection_GUI
         private void btn_pause_Click(object sender, EventArgs e)
         {
             s.Stop();
+            string log_file = Path.GetDirectoryName(fileName) + @"\" + Path.GetFileNameWithoutExtension(fileName) + "_log.txt";
+            using (FileStream f = new FileStream(log_file, FileMode.Append, FileAccess.Write))
+            using (StreamWriter writer = new StreamWriter(f))
+                writer.WriteLine("Experiment Paused at {0}", DateTime.Now);
             btn_pause.Enabled = false;
             btn_resume.Enabled = true;
             updateProgress = false;
@@ -107,6 +111,11 @@ namespace DrugInjection_GUI
                 backgroundWorker1.CancelAsync();
             }
 
+            string log_file = Path.GetDirectoryName(fileName) + @"\" + Path.GetFileNameWithoutExtension(fileName) + "_log.txt";
+            using (FileStream f = new FileStream(log_file, FileMode.Append, FileAccess.Write))
+            using (StreamWriter writer = new StreamWriter(f))
+                writer.WriteLine("Experiment Stopped at {0}", DateTime.Now);
+
             btn_run.Enabled = true;
             btn_pause.Enabled = false;
             btn_stop.Enabled = false;
@@ -119,11 +128,18 @@ namespace DrugInjection_GUI
         private void btn_resume_Click(object sender, EventArgs e)
         {
             s.Start();
+
+            string log_file = Path.GetDirectoryName(fileName) + @"\" + Path.GetFileNameWithoutExtension(fileName) + "_log.txt";
+            using (FileStream f = new FileStream(log_file, FileMode.Append, FileAccess.Write))
+            using (StreamWriter writer = new StreamWriter(f))
+                writer.WriteLine("Experiment Resumed at {0}", DateTime.Now);
+
             btn_resume.Enabled = false;
             btn_pause.Enabled = true;
             updateProgress = true;
             ResumeProcess(child.Id);
         }
+
 
         // the code below was taken from http://stackoverflow.com/questions/71257/suspend-process-in-c-sharp
         // it is used in the pause and resume button to pause or resume the thread that is running the main
@@ -251,13 +267,18 @@ namespace DrugInjection_GUI
                     {
                         totalTime = line;
                         Console.WriteLine("{0}", line);
-                        MessageBox.Show(totalTime);
                     }
                 }
                 catch (Exception exception) { }
 
             }
 
+            TimeSpan t = TimeSpan.FromSeconds(double.Parse(totalTime));
+            string time = string.Format("{0:D2}d:{1:D2}h:{2:D2}m:{3:D3}s",
+                t.Days, t.Hours, t.Minutes, t.Seconds);
+            Control.CheckForIllegalCrossThreadCalls = false;
+            lbl_time.Text = time;
+            Control.CheckForIllegalCrossThreadCalls = true;
             // create a pipe for communication with the automation code
             var receiver = new AnonymousPipeServerStream(PipeDirection.In, HandleInheritability.Inheritable);
 

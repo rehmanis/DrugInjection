@@ -12,31 +12,27 @@ namespace TimeCalculation
 {
     class Program
     {
-        // rinsing time in seconds
-        private const double RINSE_TIME = 1.0;
-
         private const double MILLI = 1e-3;
 
         // All speed are in mm/s
-        private const double X_SPEED = 54.4; 
+        private const double X_SPEED = 54.5; 
         private const double Y_SPEED = 13.6;
 
-        private const double Z_OFFSET = 17.0;
+        private const double Z_OFFSET = 17.0; //in mm
         // Time for Z-Slide
         private const double Z_HOME_TIME = Z_OFFSET;
-        private const double Z_DOWN_TIME = (10 / 17.0) * Z_OFFSET;
+        private const double Z_DOWN_TIME = (9.5 / 17.0) * Z_OFFSET;
 
         // well to well distance is 9 mm
         private const int WELL_DIS = 9;
 
         // Total time for running the one experiment
         private double totalTime = 0.0;
-        private string lastChem = "";
         private int curExlRow = 0;
 
-        // intialize a mulit value dictionary to store chemcial as key and their well locations as list of values
-        private Dictionary<string, List<string>> dict = new Dictionary<string, List<string>>();
-        
+        int curRowPos = 7, curColPos = 1, nextRowPos, nextColPos;
+        bool in_well = false;
+
         static void Main(string[] args)
         {
         
@@ -55,7 +51,6 @@ namespace TimeCalculation
             ExcelPackage excelpack = new ExcelPackage(new System.IO.FileInfo(excelFile));
 
             ExcelWorksheet worksheetWithInstruction = excelpack.Workbook.Worksheets["Sheet1"];
-            ExcelWorksheet worksheetWithChemToWell = excelpack.Workbook.Worksheets["Sheet2"];
 
             // Before starting the experiment, the z-slide home and goes back down, and the x-y slide go to their home positions
             program.totalTime += Z_HOME_TIME + Z_DOWN_TIME;
@@ -72,12 +67,6 @@ namespace TimeCalculation
             // countOfLoops holds the no. of times we have to loop over the set of instructions
             int iterateRow = 1;
             int countOfLoops = 1;
-
-            // Reads all the chemical names and their well locations and stores them in a dictionary (dict).
-            for (row = 1; row <= worksheetWithChemToWell.Dimension.End.Row; row++)
-            {
-                program.ReadRow(worksheetWithChemToWell, row, program.dict);
-            }
 
             // Row to start reading instructions from
             row = 9;
@@ -124,7 +113,7 @@ namespace TimeCalculation
             }
 
 
-
+            program.totalTime += Z_DOWN_TIME;
 
             sw.WriteLine("{0}", program.totalTime.ToString());
 
@@ -150,38 +139,12 @@ namespace TimeCalculation
                 }
 
             }
-
-            // If we are reading chemical & their well locations, we store in dict 
-            // (which is of type Dictionary<string, List<string>>)
-            if (datatype is Dictionary<string, List<string>>)
-            {
-                if (ws.Cells[row, 1].Value != null)
-                {
-                    // Check if dictionary already contains the chemical (key) name. If not, create a new key in the dictionary
-                    if (!dict.ContainsKey(ws.Cells[row, 1].Value.ToString().Trim()))
-                        dict.Add(ws.Cells[row, 1].Value.ToString().Trim(), new List<string>());
-
-                    // Read all the well locations (is in the 2nd column of the associated row) and split them into a string list
-                    string parmValues = ws.Cells[row, 2].Value.ToString();
-                    string[] parmVal = parmValues.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries);
-
-                    // Store each of the well locations as a separate value for the corresponding key
-                    foreach (var value in parmVal)
-                    {
-                        ((Dictionary<string, List<string>>)datatype)[ws.Cells[row, 1].Value.ToString().Trim()].Add(value);
-                    }
-
-                }
-
-            }
         }
 
         public void AddTime(string method, List<string> funcParamsList )
         {
             double z_move_time;
             int pause_time;
-            int curRowPos = 7, curColPos = 1, nextRowPos, nextColPos;
-            bool in_well = false;
             double inf_wrw_time;
             switch (method)
             {
@@ -273,27 +236,17 @@ namespace TimeCalculation
                 case "MoveTo":
 
                     Console.WriteLine("MOVE");
-
                     string currentChem = funcParamsList[0];
                     Console.WriteLine(currentChem);
 
-                    var regex_wellCol = new Regex(@"\d+");
-                    var regex_wellRow = new Regex(@"(?i)[A-H]{1}");
-                   
+                    var regex_wellCol = new Regex(@"\d{1,2}");
+                    var regex_wellRow = new Regex(@"[A-Ha-h]{1}");
+                    var regex_row_col = new Regex(@"\(\s*([A-Ha-h0-9]+)\s*\)");
 
-                    List<string> wellNums = dict[currentChem];
-                    foreach(string wellN in wellNums)
-                    {
-                        Console.WriteLine(wellN);
-                    }
 
-                    nextColPos = int.Parse((regex_wellCol.Match(wellNums.First())).ToString()); // used for moving yslide
-                    nextRowPos = regex_wellRow.Match(wellNums.First()).ToString()[0] - 'A'; // used for moving xslide
-
-            
-                    string nextChemConc = (regex_wellCol.Match(currentChem)).ToString();
-                    string lastChemConc = (regex_wellCol.Match(lastChem)).ToString();
-
+                    string well = regex_row_col.Match(currentChem).Groups[1].ToString();
+                    nextColPos = Int32.Parse(regex_wellCol.Match(well).ToString());
+                    nextRowPos = regex_wellRow.Match(well).ToString()[0] - 'A';
                     // time it takes for needle to traverse to next well location is added.
 
                     if (!in_well)
@@ -304,14 +257,12 @@ namespace TimeCalculation
                     totalTime += WELL_DIS * (Math.Abs(curRowPos - nextRowPos) / X_SPEED + Math.Abs(curColPos - nextColPos)/Y_SPEED) + 
                         z_move_time;
 
-                    // ASSUMING ALL CHEMICAL IS USED UP AFTER ONE OPERATION (MIGHT NEED TO CHANGE)
-                    //dict[currentChem].Remove(wellNums.First());
+
 
                     // current row and column position is updated to next ones.
                     curRowPos = nextRowPos;
                     curColPos = nextColPos;
                     in_well = true;
-                    //lastChem = currentChem;
                     break;
 
                     

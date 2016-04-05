@@ -45,6 +45,7 @@
             this.lblProgress = new System.Windows.Forms.Label();
             this.btn_calibrate = new System.Windows.Forms.Button();
             this.btn_home = new System.Windows.Forms.Button();
+            this.lbl_time = new System.Windows.Forms.Label();
             this.SuspendLayout();
             // 
             // btn_browse
@@ -166,12 +167,22 @@
             this.btn_home.UseVisualStyleBackColor = true;
             this.btn_home.Click += new System.EventHandler(this.btn_home_Click);
             // 
+            // lbl_time
+            // 
+            this.lbl_time.AutoSize = true;
+            this.lbl_time.Location = new System.Drawing.Point(43, 163);
+            this.lbl_time.Name = "lbl_time";
+            this.lbl_time.Size = new System.Drawing.Size(83, 13);
+            this.lbl_time.TabIndex = 12;
+            this.lbl_time.Text = "Total Time: N/A";
+            // 
             // Form1
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.BackColor = System.Drawing.Color.AliceBlue;
             this.ClientSize = new System.Drawing.Size(528, 250);
+            this.Controls.Add(this.lbl_time);
             this.Controls.Add(this.btn_home);
             this.Controls.Add(this.btn_calibrate);
             this.Controls.Add(this.lblProgress);
@@ -208,6 +219,7 @@
         private System.Windows.Forms.Label lblProgress;
         private System.Windows.Forms.Button btn_calibrate;
         private System.Windows.Forms.Button btn_home;
+        private System.Windows.Forms.Label lbl_time;
     }
 }
 
